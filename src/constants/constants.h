@@ -154,6 +154,16 @@ constexpr std::array<std::string_view, 17> cufft_error_types = {
         "CUFFT_NOT_SUPPORTED"};
 } // namespace gpu
 
+namespace supported_image_file_types {
+enum Enum : int {
+    MRC_FILE,
+    TIFF_FILE,
+    DM_FILE,
+    EER_FILE,
+    UNSUPPORTED_FILE_TYPE
+};
+} // namespace supported_image_file_types
+
 } // namespace cistem
 
 #endif

@@ -54,9 +54,6 @@ bool Resample::DoCalculation( ) {
     Image                 my_image;
     EmpiricalDistribution my_distribution;
 
-    // pixel size could be non-square/cubic but we will ignore this here and assume it is square/cubic
-    pixel_size = my_input_file.ReturnPixelSize( ) * float(my_input_file.ReturnXSize( )) / float(new_x_size);
-
     if ( is_a_volume == true ) {
 
         wxPrintf("\nResampling Volume...\n\n");
@@ -92,7 +89,23 @@ bool Resample::DoCalculation( ) {
         std = sqrt(std);
     }
     my_output_file.SetDensityStatistics(my_distribution.GetMinimum( ), my_distribution.GetMaximum( ), my_distribution.GetSampleMean( ), std);
-    my_output_file.SetPixelSize(pixel_size);
+
+    if ( my_input_file.ReturnFileType( ) == cistem::supported_image_file_types::MRC_FILE ) {
+        float new_pixel_size_x = my_input_file.ReturnPixelSize_X( ) * float(my_input_file.ReturnXSize( )) / float(new_x_size);
+        float new_pixel_size_y = my_input_file.ReturnPixelSize_Y( ) * float(my_input_file.ReturnYSize( )) / float(new_y_size);
+        float new_pixel_size_z;
+        if ( is_a_volume ) {
+            new_pixel_size_z = my_input_file.ReturnPixelSize_Z( ) * float(my_input_file.ReturnZSize( )) / float(new_z_size);
+        }
+        else {
+            new_pixel_size_z = my_input_file.ReturnPixelSize_Z( );
+        }
+        my_output_file.my_header.SetPixelSize(new_pixel_size_x, new_pixel_size_y, new_pixel_size_z);
+    }
+    else {
+        my_output_file.SetPixelSize(my_input_file.ReturnPixelSize( ) * float(my_input_file.ReturnXSize( )) / float(new_x_size));
+    }
+
     my_output_file.WriteHeader( );
 
     return true;

@@ -144,8 +144,17 @@ class MRCHeader {
 
     inline bool PixelDataAreSigned( ) { return pixel_data_are_signed; }
 
-    float ReturnPixelSize( );
-    void  SetPixelSize(float wanted_pixel_size);
+    float ReturnPixelSize(int dim = 0);
+
+    float ReturnPixelSize_X( ) { return ReturnPixelSize(0); };
+
+    float ReturnPixelSize_Y( ) { return ReturnPixelSize(1); };
+
+    float ReturnPixelSize_Z( ) { return ReturnPixelSize(2); };
+
+    void SetPixelSize(float wanted_pixel_size_x, float wanted_pixel_size_y, float wanted_pixel_size_z);
+
+    void SetPixelSize(float wanted_pixel_size) { SetPixelSize(wanted_pixel_size, wanted_pixel_size, wanted_pixel_size); };
 
     void SetDimensionsImage(int wanted_x_dim, int wanted_y_dim);
     void SetDimensionsVolume(int wanted_x_dim, int wanted_y_dim, int wanted_z_dim);

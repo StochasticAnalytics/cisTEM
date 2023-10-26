@@ -218,7 +218,7 @@ class DMFile : public AbstractImageFile {
 
     int ReturnNumberOfSlices( ) { return z; };
 
-    inline float ReturnPixelSize( ) { return pixel_size; };
+    inline float ReturnPixelSize(int dim = 0) { return pixel_size; };
 
     bool IsOpen( );
 

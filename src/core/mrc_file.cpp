@@ -126,12 +126,12 @@ void MRCFile::PrintInfo( ) {
     wxPrintf("\n");
 }
 
-float MRCFile::ReturnPixelSize( ) {
-    return my_header.ReturnPixelSize( );
+float MRCFile::ReturnPixelSize(int dim) {
+    return my_header.ReturnPixelSize(dim);
 }
 
-void MRCFile::SetPixelSize(float wanted_pixel_size) {
-    my_header.SetPixelSize(wanted_pixel_size);
+void MRCFile::SetPixelSize(float wanted_pixel_size_x, float wanted_pixel_size_y, float wanted_pixel_size_z) {
+    my_header.SetPixelSize(wanted_pixel_size_x, wanted_pixel_size_y, wanted_pixel_size_z);
 }
 
 void MRCFile::ReadSlicesFromDisk(int start_slice, int end_slice, float* output_array) {

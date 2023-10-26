@@ -65,20 +65,20 @@ void MRCHeader::PrintInfo( ) {
     delete[] current_label;
 }
 
-float MRCHeader::ReturnPixelSize( ) {
-    if ( cell_a_x[0] == 0.0 ) {
+float MRCHeader::ReturnPixelSize(int dim) {
+    if ( cell_a_x[dim] == 0.0 ) {
         return 0.0;
     }
     else {
-        return cell_a_x[0] / mx[0];
+        return cell_a_x[dim] / mx[dim];
     }
 }
 
 // Make sure to call this after the volume / image dimensions have been set
-void MRCHeader::SetPixelSize(float wanted_pixel_size) {
-    cell_a_x[0] = wanted_pixel_size * mx[0];
-    cell_a_y[0] = wanted_pixel_size * my[0];
-    cell_a_z[0] = wanted_pixel_size * mz[0];
+void MRCHeader::SetPixelSize(float wanted_pixel_size_x, float wanted_pixel_size_y, float wanted_pixel_size_z) {
+    cell_a_x[0] = wanted_pixel_size_x * mx[0];
+    cell_a_y[0] = wanted_pixel_size_y * my[0];
+    cell_a_z[0] = wanted_pixel_size_z * mz[0];
 }
 
 void MRCHeader::SetDimensionsImage(int wanted_x_dim, int wanted_y_dim) {

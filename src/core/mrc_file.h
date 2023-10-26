@@ -62,8 +62,17 @@ class MRCFile : public AbstractImageFile {
 
     void PrintInfo( );
 
-    float ReturnPixelSize( );
-    void  SetPixelSize(float wanted_pixel_size);
+    float ReturnPixelSize(int dim = 0);
+
+    float ReturnPixelSize_X( ) { return ReturnPixelSize(0); };
+
+    float ReturnPixelSize_Y( ) { return ReturnPixelSize(1); };
+
+    float ReturnPixelSize_Z( ) { return ReturnPixelSize(2); };
+
+    void SetPixelSize(float wanted_pixel_size_x, float wanted_pixel_size_y, float wanted_pixel_size_z);
+
+    void SetPixelSize(float wanted_pixel_size) { SetPixelSize(wanted_pixel_size, wanted_pixel_size, wanted_pixel_size); };
 
     inline void SetDensityStatistics(float wanted_min, float wanted_max, float wanted_mean, float wanted_rms) { my_header.SetDensityStatistics(wanted_min, wanted_max, wanted_mean, wanted_rms); }
 

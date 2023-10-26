@@ -3,23 +3,21 @@
  * files we support (MRC, DM, TIF, etc.)
  */
 
-enum supported_file_types {
-    MRC_FILE,
-    TIFF_FILE,
-    DM_FILE,
-    EER_FILE,
-    UNSUPPORTED_FILE_TYPE
-};
+#include "../constants/constants.h"
 
 class ImageFile : public AbstractImageFile {
+
   private:
+    using img_file_t = cistem::supported_image_file_types::Enum;
+
     // These are the actual file objects doing the work
     MRCFile  mrc_file;
     TiffFile tiff_file;
     DMFile   dm_file;
     EerFile  eer_file;
 
-    int      file_type;
+    img_file_t file_type;
+
     wxString file_type_string;
     void     SetFileTypeFromExtension( );
 
@@ -28,11 +26,43 @@ class ImageFile : public AbstractImageFile {
     ImageFile(std::string wanted_filename, bool overwrite = false);
     ~ImageFile( );
 
+    inline img_file_t ReturnFileType( ) { return file_type; };
+
     int   ReturnXSize( );
     int   ReturnYSize( );
     int   ReturnZSize( );
     int   ReturnNumberOfSlices( );
-    float ReturnPixelSize( );
+    float ReturnPixelSize(int dim = 0);
+
+    float ReturnPixelSize_X( ) {
+        if ( file_type == img_file_t::MRC_FILE )
+            return mrc_file.ReturnPixelSize_X( );
+        else
+            return ReturnPixelSize( );
+    }
+
+    float ReturnPixelSize_Y( ) {
+        if ( file_type == img_file_t::MRC_FILE )
+            return mrc_file.ReturnPixelSize_Y( );
+        else
+            return ReturnPixelSize( );
+    }
+
+    float ReturnPixelSize_Z( ) {
+        if ( file_type == img_file_t::MRC_FILE )
+            return mrc_file.ReturnPixelSize_Z( );
+        else
+            return ReturnPixelSize( );
+    }
+
+    void SetPixelSize(float new_pixel_size_x, float new_pixel_size_y, float new_pixel_size_z) {
+        MyDebugAssertTrue(file_type == img_file_t::MRC_FILE, "Only implemented for MRC files");
+        mrc_file.SetPixelSize(new_pixel_size_x, new_pixel_size_y, new_pixel_size_z);
+    }
+
+    void SetPixelSize(float new_pixel_size) {
+        SetPixelSize(new_pixel_size, new_pixel_size, new_pixel_size);
+    }
 
     bool IsOpen( );
 

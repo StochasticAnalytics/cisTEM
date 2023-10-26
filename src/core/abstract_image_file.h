@@ -7,11 +7,11 @@ class AbstractImageFile {
     AbstractImageFile(std::string filename, bool overwrite = false);
     ~AbstractImageFile( );
 
-    virtual int   ReturnXSize( )          = 0;
-    virtual int   ReturnYSize( )          = 0;
-    virtual int   ReturnZSize( )          = 0;
-    virtual int   ReturnNumberOfSlices( ) = 0;
-    virtual float ReturnPixelSize( )      = 0;
+    virtual int   ReturnXSize( )           = 0;
+    virtual int   ReturnYSize( )           = 0;
+    virtual int   ReturnZSize( )           = 0;
+    virtual int   ReturnNumberOfSlices( )  = 0;
+    virtual float ReturnPixelSize(int dim) = 0;
 
     virtual bool IsOpen( ) = 0;
 

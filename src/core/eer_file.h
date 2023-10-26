@@ -35,7 +35,7 @@ class EerFile : public AbstractImageFile {
 
     inline int ReturnNumberOfSlices( ) { return number_of_images; };
 
-    inline float ReturnPixelSize( ) { return pixel_size; };
+    inline float ReturnPixelSize(int dim = 0) { return pixel_size; };
 
     inline bool IsOpen( ) {
         if ( tif ) {
