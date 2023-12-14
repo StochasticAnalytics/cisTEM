@@ -1,6 +1,6 @@
 {
     "name": "cisTEMdev-wxSTABLE-static12",
-    "image": "cistemdashorg/cistem_build_env:v2.0.12",
+    "image": "cistemdashorg/cistem_build_env:v2.0.5-static",
     "remoteUser": "cisTEMdev",
     "runArgs": [
         "--rm",
@@ -36,5 +36,8 @@
                 "GitHub.copilot-chat"
             ]
         }
-    }
+    },
+    "mounts": [
+        "source=/sa_shared/git/FastFFT,target=/mnt/FastFFT,type=bind,consistency=cached"
+    ]
 }

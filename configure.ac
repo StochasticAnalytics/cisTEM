@@ -226,14 +226,9 @@ AC_ARG_ENABLE(debugmode, AS_HELP_STRING([--enable-debugmode],[Compile in debug m
 ###############################
 
 
-FastFFT_INCLUDES=""
-use_FastFFT="no"
-AC_ARG_ENABLE(FastFFT, AS_HELP_STRING([--enable-FastFFT],[FastFFT library for gpu builds [default=no]]),[
-  if test "$enableval" = yes; then
-    # Call the m4 macro to check and setup for FastFFT if present and requested
-    submodule_FastFFT
-  fi
-  ]) 
+
+submodule_FastFFT
+
   
 if test "$want_cuda" = "yes" ; then
 
