@@ -238,7 +238,8 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
             current_projection.SwapRealSpaceQuadrants( );
             current_projection.MultiplyPixelWise(projection_filter);
             current_projection.BackwardFFT( );
-            average_on_edge  = current_projection.ReturnAverageOfRealValuesOnEdges( );
+            average_on_edge = current_projection.ReturnAverageOfRealValuesOnEdges( );
+
             average_of_reals = current_projection.ReturnAverageOfRealValues( ) - average_on_edge;
 
             // Make sure the device has moved on to the padded projection
@@ -248,24 +249,29 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
             // association with non-owned GPU memory.
             //// TO THE GPU ////
             d_current_projection.CopyHostToDevice(current_projection);
-
+            if ( ! use_fast_fft ) {
+                d_current_projection.AddConstant(-average_on_edge);
+            }
             // The average in the full padded image will be different;
             average_of_reals *= ((float)d_current_projection.number_of_real_space_pixels / (float)d_padded_reference.number_of_real_space_pixels);
-
-            d_current_projection.MultiplyByConstant(rsqrtf(d_current_projection.ReturnSumOfSquares( ) / (float)d_padded_reference.number_of_real_space_pixels - (average_of_reals * average_of_reals)));
 
 #ifdef ENABLE_FastFFT
             if ( use_fast_fft ) {
                 // FIXME:
-                d_current_projection.MultiplyByConstant(1.f / (float)d_padded_reference.number_of_real_space_pixels);
-                d_current_projection.CopyFP32toFP16buffer(false);
+                //     scalar       = rsqrtf((scalar * scalar) / additional_scalar - average_sq);
+                // output_reals[address] = __float2half_rn((input_val - average_on_edge) * scalar);
+                float xtra_scalar = 1.f / (float)d_padded_reference.number_of_real_space_pixels;
+                d_current_projection.NormalizeRealSpaceStdDeviationAndCastToFp16(xtra_scalar, xtra_scalar * average_of_reals, average_on_edge);
+
                 cudaErr(cudaEventRecord(projection_is_free_Event, cudaStreamPerThread));
                 // Pickup here, d_current_projection is not large enough to hold the padded image, so probably the easiest thing to do is to
                 // also allow an output pointer to be passed in.
                 FT.FwdImageInvFFT(d_current_projection.real_values_fp16, (__half2*)d_input_image.complex_values_fp16, d_padded_reference.real_values_fp16, noop, conj_mul, noop);
+                cudaErr(cudaStreamSynchronize(cudaStreamPerThread));
             }
 #endif
             if ( ! use_fast_fft ) {
+                d_current_projection.MultiplyByConstant(rsqrtf(d_current_projection.ReturnSumOfSquares( ) / (float)d_padded_reference.number_of_real_space_pixels - (average_of_reals * average_of_reals)));
 
                 d_current_projection.ClipInto(&d_padded_reference, 0, false, 0, 0, 0, 0);
                 cudaErr(cudaEventRecord(projection_is_free_Event, cudaStreamPerThread));

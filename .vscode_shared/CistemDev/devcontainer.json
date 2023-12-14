@@ -1,6 +1,6 @@
 {
     "name": "cisTEMdev-wxSTABLE-static12",
-    "image": "cistemdashorg/cistem_build_env:v2.0.5-static",
+    "image": "cistemdashorg/cistem_build_env:v2.0.12",
     "remoteUser": "cisTEMdev",
     "runArgs": [
         "--rm",
