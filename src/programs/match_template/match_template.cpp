@@ -105,6 +105,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     bool     use_gpu_input             = false;
     int      max_threads               = 1; // Only used for the GPU code
     bool     use_fast_fft              = false;
+    bool     use_fast_fft_and_crop     = false;
 
     UserInput* my_input = new UserInput("MatchTemplate", 1.00);
 
@@ -142,9 +143,10 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     particle_radius_angstroms = my_input->GetFloatFromUser("Mask radius for global search (A) (0.0 = max)", "Radius of a circular mask to be applied to the input images during global search", "0.0", 0.0);
     my_symmetry               = my_input->GetSymmetryFromUser("Template symmetry", "The symmetry of the template reconstruction", "C1");
 #ifdef ENABLEGPU
-    use_gpu_input = my_input->GetYesNoFromUser("Use GPU", "Offload expensive calcs to GPU", "No");
-    max_threads   = my_input->GetIntFromUser("Max. threads to use for calculation", "when threading, what is the max threads to run", "1", 1);
-    use_fast_fft  = my_input->GetYesNoFromUser("Use Fast FFT", "Use the Fast FFT library", "No");
+    use_gpu_input         = my_input->GetYesNoFromUser("Use GPU", "Offload expensive calcs to GPU", "Yes");
+    use_fast_fft          = my_input->GetYesNoFromUser("Use Fast FFT", "Use the Fast FFT library", "Yes");
+    use_fast_fft_and_crop = my_input->GetYesNoFromUser("Use Fast FFT and Crop", "Use Fast FFT with images > 4096 by cropping", "No");
+    max_threads           = my_input->GetIntFromUser("Max. threads to use for calculation", "when threading, what is the max threads to run", "1", 1);
 #endif
 
     int   first_search_position           = -1;
@@ -158,7 +160,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
 
     delete my_input;
 
-    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbib", input_search_images.ToUTF8( ).data( ),
+    my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbbbi", input_search_images.ToUTF8( ).data( ),
                                       input_reconstruction.ToUTF8( ).data( ),
                                       pixel_size,
                                       voltage_kV,
@@ -199,8 +201,9 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
                                       result_filename.ToUTF8( ).data( ),
                                       min_peak_radius,
                                       use_gpu_input,
-                                      max_threads,
-                                      use_fast_fft);
+                                      use_fast_fft,
+                                      use_fast_fft_and_crop,
+                                      max_threads);
 }
 
 // override the do calculation method which will be what is actually run..
@@ -257,8 +260,9 @@ bool MatchTemplateApp::DoCalculation( ) {
     wxString result_output_filename          = my_current_job.arguments[38].ReturnStringArgument( );
     float    min_peak_radius                 = my_current_job.arguments[39].ReturnFloatArgument( );
     bool     use_gpu                         = my_current_job.arguments[40].ReturnBoolArgument( );
-    int      max_threads                     = my_current_job.arguments[41].ReturnIntegerArgument( );
-    bool     use_fast_fft                    = my_current_job.arguments[42].ReturnBoolArgument( );
+    bool     use_fast_fft                    = my_current_job.arguments[41].ReturnBoolArgument( );
+    bool     use_fast_fft_and_crop           = my_current_job.arguments[42].ReturnBoolArgument( );
+    int      max_threads                     = my_current_job.arguments[43].ReturnIntegerArgument( );
 
     if ( is_running_locally == false )
         max_threads = number_of_threads_requested_on_command_line; // OVERRIDE FOR THE GUI, AS IT HAS TO BE SET ON THE COMMAND LINE...
@@ -270,11 +274,6 @@ bool MatchTemplateApp::DoCalculation( ) {
     if ( ! use_gpu && max_threads > 1 ) {
         SendInfo("Using more than one thread only works in the GPU implementation\nSet No. of threads per copy to 1 in your Run Profile\n.");
         max_threads = 1;
-    }
-
-    if ( use_fast_fft && ! use_gpu ) {
-        SendInfo("Fast FFT is only available in the GPU implementation\n");
-        use_fast_fft = false;
     }
 
     ParameterMap parameter_map; // needed for euler search init
@@ -451,7 +450,14 @@ bool MatchTemplateApp::DoCalculation( ) {
                 SendError("FastFFT only supports images up to 8192x8192\n");
             }
             else if ( factorizable_x > 4096 || factorizable_y > 4096 ) {
-                SendInfo("Use of FastFFT for images larger than 4k x 4k is likely a pessimation\n");
+                if ( use_fast_fft_and_crop ) {
+                    SendInfo("Warning, cropping image to max 4096x4096\n");
+                    factorizable_x = std::min(factorizable_x, 4096);
+                    factorizable_y = std::min(factorizable_y, 4096);
+                }
+                else {
+                    SendInfo("Use of FastFFT for images larger than 4k x 4k is likely a pessimation\n");
+                }
             }
         }
 
