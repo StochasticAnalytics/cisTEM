@@ -256,6 +256,7 @@ class GpuImage {
 
     void CopyFP32toFP16buffer(bool deallocate_single_precision = true);
     void CopyFP16buffertoFP32(bool deallocate_half_precision = true);
+    void CopyFP32toFP16bufferAndScale(float scalar);
 
     void AllocateTmpVarsAndEvents( );
     // If we allocate the fp16 buffer, we will not allocate fp32, will leave it alone if the same size, and will remove it if different.
@@ -370,7 +371,7 @@ class GpuImage {
         // is to limit the number of SMs available for some kernels so that other threads on the device can run in parallel.
         // limit_SMs_by_threads is default 1, so this must be set prior to this call.
         threadsPerBlock = dim3(M, 1, 1);
-        gridDims        = dim3(myroundint(N * number_of_streaming_multiprocessors));
+        gridDims        = dim3(myroundint(N * number_of_streaming_multiprocessors), 1, 1);
     };
 
     void UpdateFlagsFromHostImage(Image& host_image);

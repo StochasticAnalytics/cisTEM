@@ -225,13 +225,21 @@ AC_ARG_ENABLE(debugmode, AS_HELP_STRING([--enable-debugmode],[Compile in debug m
 # BEGIN CUDA CHECKS AND SETS
 ###############################
 
+# fft_debug_level is used by submodule_FastFFT to set the debug level for FastFFT so must be set prior to calling that macro.
+fft_debug_level=0
+AC_ARG_ENABLE(gpu-debug, AS_HELP_STRING([--enable-gpu-debug],[Compile heavy synchronous checking [default=no]]),[
+  if test "$enableval" = yes; then
+    AC_DEFINE([ENABLE_GPU_DEBUG],[], [use the gpu or not])
+  	AC_MSG_NOTICE([Compiling with synchronizing debug checks for GPU code])	
+    fft_debug_level=4
+  fi
+  ]) 
 
-
-submodule_FastFFT
-
-  
 if test "$want_cuda" = "yes" ; then
 
+    # Call the m4 macro to check and setup for FastFFT if present.
+    # This is enabled by default for GPU builds and is only disabled at runtime if requested.
+    submodule_FastFFT
 
     # ~Runtime about 85% with K3 images, but mips are different - total detection is ~the same. 
     # Determined this is likely just numerical error. Enabling by default.
@@ -268,7 +276,6 @@ fi
 
 # Define WANT_CISTEM_GPU_AM to be used in the Makefile on a per-program basis to then define ENABLEGPU or not.
 AM_CONDITIONAL([WANT_CISTEM_GPU_AM], [test "$want_cuda" = "yes"])
-AM_CONDITIONAL([ENABLE_FASTFFT_AM], [test "x$use_FastFFT" = "xyes"])
 
 # fftw
 
@@ -318,13 +325,6 @@ AC_ARG_ENABLE(wx-webview, AS_HELP_STRING([--enable-wx-webview],[Compile with exp
 AM_CONDITIONAL([ENABLE_WEBVIEW_AM], [test x$want_webview = xtrue])
 
 
-
-AC_ARG_ENABLE(gpu-debug, AS_HELP_STRING([--enable-gpu-debug],[Compile heavy synchronous checking [default=no]]),[
-  if test "$enableval" = yes; then
-    AC_DEFINE([ENABLE_GPU_DEBUG],[], [use the gpu or not])
-  	AC_MSG_NOTICE([Compiling with synchronizing debug checks for GPU code])	
-  fi
-  ]) 
   
 # experimental
 compile_experimental="false"

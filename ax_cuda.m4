@@ -193,6 +193,7 @@ fi
 
 if test "x$is_cuda_ge_11" == "x1" ; then
   AC_MSG_NOTICE([CUDA >= 11.0, enabling --extra-device-vectorization])
+  # -t allows nvcc to build for multiple architectures at once
   NVCCFLAGS+=" --extra-device-vectorization -std=c++17 --expt-relaxed-constexpr -t8" 
 else
   NVCCFLAGS+=" -std=c++11" 

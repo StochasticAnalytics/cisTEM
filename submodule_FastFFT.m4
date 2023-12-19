@@ -33,13 +33,15 @@ AC_ARG_ENABLE(FastFFT, AS_HELP_STRING([--disable-FastFFT],[Do not use the FastFF
         # because TOPSRCDIR defined by autotools srcdir is generally ../.. so a file in src/core would be okay to include, but 
         # a file in src/program/program name would not find the header.
         # FastFFT_INCLUDES="$FastFFT_INCLUDES -I$CISTEM_CONFIG_DIR/$TOPSRCDIR/src/ext/FastFFT/include"
-        AC_DEFINE(ENABLE_FastFFT, [], [Use the FasFFT library for GPU FFTs where appropriate.])
+        AC_DEFINE(cisTEM_USING_FastFFT, [], [Use the FasFFT library for GPU FFTs where appropriate.])
         AC_MSG_NOTICE([Using the FastFFT Library.])
         AC_DEFINE([CUFFTDX_DISABLE_RUNTIME_ASSERTS], [], [Define the CUFFTDX_DISABLE_RUNTIME_ASSERTS flag])
         # Generally, you probably shouldn't need to use these through cisTEM, but they do need to be defined.
-        # TODO send these as a flag only where needed.
-        # FastFFT_FLAGS="-DFFT_DEBUG_LEVEL=4 -DDEBUG_FFT_STAGE=8 -DHEAVYERRORCHECKING_FFT -DHEAVYERRORCHECKING"      
-        FastFFT_CXX_FLAGS=" -DFFT_DEBUG_LEVEL=3 -DFFT_DEBUG_STAGE=8"  
+        #      
+        if test "x$fft_debug_level" != "x0" -a  "x$fft_debug_level" != "x4"; then
+            AC_MSG_ERROR([FastFFT is only supported for fft_debug_level 3 and 4.])
+        fi
+        FastFFT_CXX_FLAGS=" -DFFT_DEBUG_LEVEL=$fft_debug_level -DFFT_DEBUG_STAGE=8"  
         FastFFT_CUDA_FLAGS=" --extended-lambda --Wext-lambda-captures-this --expt-relaxed-constexpr"
 
     else

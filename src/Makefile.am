@@ -347,10 +347,9 @@ libgpucore_a_SOURCES  =      gpu/core_extensions/stop_watch_gpu.cu \
                              gpu/TensorManager.cu \
                              gpu/GpuImage.cu \
                              programs/refine3d/batched_search.cu \
-                             test/gpu/test_gpu_kernels.cu
-if ENABLE_FASTFFT_AM
-    libgpucore_a_SOURCES += ext/FastFFT/src/fastfft/FastFFT.cu
-endif
+                             test/gpu/test_gpu_kernels.cu \
+                             ext/FastFFT/src/fastfft/FastFFT.cu
+
 
 libgpucore_OBJECTS=$(libgpucore_a_SOURCES:.cu=.o)                                                   
 
@@ -577,7 +576,6 @@ endif
 
 console_test_LDSTRING=
 if WANT_CISTEM_GPU_AM
-# WANT_CISTEM_GPU_AM also implies ENABLE_FASTFFT_AM 
     console_test_LDSTRING += libgpucore.a
 endif
 

@@ -1,18 +1,17 @@
 #include <cistem_config.h>
 
 #ifdef ENABLEGPU
+
 #include "../../gpu/gpu_core_headers.h"
 #include "../../gpu/DeviceManager.h"
 #include "../../gpu/TemplateMatchingCore.h"
+#include "../../ext/FastFFT/include/FastFFT.h"
+
 #else
 #include "../../core/core_headers.h"
 #endif
 
 #include "../../constants/constants.h"
-
-#if defined(ENABLE_FastFFT) && defined(ENABLEGPU)
-#include "../../ext/FastFFT/include/FastFFT.h"
-#endif
 
 class AggregatedTemplateResult {
   public:
@@ -277,12 +276,6 @@ bool MatchTemplateApp::DoCalculation( ) {
         SendInfo("Fast FFT is only available in the GPU implementation\n");
         use_fast_fft = false;
     }
-#ifndef ENABLE_FastFFT
-    if ( use_fast_fft ) {
-        SendInfo("Fast FFT is not enabled in this build.  Falling back to standard FFT.\n");
-        use_fast_fft = false;
-    }
-#endif
 
     ParameterMap parameter_map; // needed for euler search init
     //for (int i = 0; i < 5; i++) {parameter_map[i] = true;}
@@ -382,52 +375,85 @@ bool MatchTemplateApp::DoCalculation( ) {
     factorizable_x         = input_image.logical_x_dimension;
     factorizable_y         = input_image.logical_y_dimension;
 
-    bool      DO_FACTORIZATION                       = true;
-    bool      MUST_BE_POWER_OF_TWO                   = false; // Required for half-precision xforms
-    bool      MUST_BE_FACTOR_OF_FOUR                 = true; // May be faster
-    const int max_number_primes                      = 6;
-    int       primes[max_number_primes]              = {2, 3, 5, 7, 9, 13};
-    float     max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
-    float     max_increas_by_fraction_of_image       = 0.1f;
-    int       max_padding                            = 0; // To restrict histogram calculation
-    float     histogram_padding_trim_rescale; // scale the counts to
+    bool             DO_FACTORIZATION       = true;
+    bool             MUST_BE_POWER_OF_TWO   = false; // Required for half-precision xforms
+    bool             MUST_BE_FACTOR_OF_FOUR = true; // May be faster
+    std::vector<int> primes;
+    if ( use_fast_fft )
+        primes.assign({2});
+    else
+        primes.assign({2, 3, 5, 7, 9, 13});
+    float max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
+    float max_increase_by_fraction_of_image;
+    if ( use_fast_fft )
+        max_increase_by_fraction_of_image = 2.f;
+    else
+        max_increase_by_fraction_of_image = 0.1f;
+    int   max_padding = 0; // To restrict histogram calculation
+    float histogram_padding_trim_rescale; // scale the counts to
 
     // for 5760 this will return
     // 5832 2     2     2     3     3     3     3     3     3 - this is ~ 10% faster than the previous solution BUT
     if ( DO_FACTORIZATION ) {
-        for ( i = 0; i < max_number_primes; i++ ) {
+        for ( auto& prime_value : primes ) {
 
-            factor_result_neg = ReturnClosestFactorizedLower(original_input_image_x, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
-            factor_result_pos = ReturnClosestFactorizedUpper(original_input_image_x, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
+            factor_result_neg = ReturnClosestFactorizedLower(original_input_image_x, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
+            factor_result_pos = ReturnClosestFactorizedUpper(original_input_image_x, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
 
             if ( (float)(original_input_image_x - factor_result_neg) < (float)input_reconstruction_file.ReturnXSize( ) * max_reduction_by_fraction_of_reference ) {
                 factorizable_x = factor_result_neg;
                 break;
             }
-            if ( (float)(-original_input_image_x + factor_result_pos) < (float)input_image.logical_x_dimension * max_increas_by_fraction_of_image ) {
+            if ( (float)(-original_input_image_x + factor_result_pos) < (float)input_image.logical_x_dimension * max_increase_by_fraction_of_image ) {
                 factorizable_x = factor_result_pos;
                 break;
             }
         }
         factor_score = FLT_MAX;
-        for ( i = 0; i < max_number_primes; i++ ) {
+        for ( auto& prime_value : primes ) {
 
-            factor_result_neg = ReturnClosestFactorizedLower(original_input_image_y, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
-            factor_result_pos = ReturnClosestFactorizedUpper(original_input_image_y, primes[i], true, MUST_BE_FACTOR_OF_FOUR);
+            factor_result_neg = ReturnClosestFactorizedLower(original_input_image_y, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
+            factor_result_pos = ReturnClosestFactorizedUpper(original_input_image_y, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
 
             if ( (float)(original_input_image_y - factor_result_neg) < (float)input_reconstruction_file.ReturnYSize( ) * max_reduction_by_fraction_of_reference ) {
                 factorizable_y = factor_result_neg;
                 break;
             }
-            if ( (float)(-original_input_image_y + factor_result_pos) < (float)input_image.logical_y_dimension * max_increas_by_fraction_of_image ) {
+            if ( (float)(-original_input_image_y + factor_result_pos) < (float)input_image.logical_y_dimension * max_increase_by_fraction_of_image ) {
                 factorizable_y = factor_result_pos;
                 break;
             }
         }
+
         if ( factorizable_x - original_input_image_x > max_padding )
             max_padding = factorizable_x - original_input_image_x;
         if ( factorizable_y - original_input_image_y > max_padding )
             max_padding = factorizable_y - original_input_image_y;
+
+        if ( use_fast_fft ) {
+            // We currently can only use FastFFT for power of 2 size images and template
+            // TODO: the limit on templates should be trivial to remove since they are padded.
+            // TOOD: Should probably consider this in the code above working out next good size, rather than only allowing power of 2,
+            //       which will take a k3 to 8k x 8k it would be better to pad either
+            //       a) crop to 4k x 4k (lossy but immediately supported)
+            //       b) split into two images and pad each to either 4k x 4k (possibly a bit slower and not yet supported)
+            // FIXME:
+            if ( factorizable_x != factorizable_y ) {
+                SendInfo("FastFFT currently only supports square images, padding smaller up\n");
+            }
+            if ( factorizable_x > factorizable_y ) {
+                factorizable_y = factorizable_x;
+            }
+            else {
+                factorizable_x = factorizable_y;
+            }
+            if ( factorizable_x > 4096 * 2 || factorizable_y > 4096 * 2 ) {
+                SendError("FastFFT only supports images up to 8192x8192\n");
+            }
+            else if ( factorizable_x > 4096 || factorizable_y > 4096 ) {
+                SendInfo("Use of FastFFT for images larger than 4k x 4k is likely a pessimation\n");
+            }
+        }
 
         if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
             wxPrintf("old x, y = %i %i\n  new x, y = %i %i\n", input_image.logical_x_dimension, input_image.logical_y_dimension, factorizable_x, factorizable_y);
@@ -486,11 +512,6 @@ bool MatchTemplateApp::DoCalculation( ) {
     ZeroDoubleArray(correlation_pixel_sum_of_squares, input_image.real_memory_allocated);
 
     sqrt_input_pixels = sqrt((double)(input_image.logical_x_dimension * input_image.logical_y_dimension));
-    // The CCC calculated is properly normalized when using FastFFT so the additional scaling is not needed.
-#ifdef ENABLE_FastFFT
-    if ( use_fast_fft )
-        sqrt_input_pixels = 1.0;
-#endif
 
     // setup curve
     histogram_step        = (histogram_max - histogram_min) / float(histogram_number_of_points);
