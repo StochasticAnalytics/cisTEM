@@ -2002,7 +2002,7 @@ void MyTestApp::TestFastFFT( ) {
         d_copy_of_input.CopyHostToDeviceAndSynchronize(copy_of_input, false);
 
         // We just make one instance of the FourierTransformer class, with calc type float.
-        FastFFT::FourierTransformer<float, float, float22, 2> FT;
+        FastFFT::FourierTransformer<float, float, float2, 2> FT;
 
         // This is similar to creating an FFT/CUFFT plan, so set these up before doing anything on the GPU
         // for this test, we know the size is square and 64 with input and output size equal.
