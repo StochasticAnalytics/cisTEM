@@ -37,5 +37,9 @@
                 "GitHub.copilot-chat"
             ]
         }
-    }
+    },
+    // TODO: When FastFFT is incorporated into cisTEM, remove this mount as it should be cloned into src/ext/FastFFT
+    "mounts": [
+        "source=/sa_shared/git/FastFFT,target=/mnt/FastFFT,type=bind,consistency=cached"
+    ]
 }

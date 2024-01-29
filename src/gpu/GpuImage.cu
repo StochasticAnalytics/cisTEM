@@ -1141,6 +1141,47 @@ void GpuImage::NormalizeRealSpaceStdDeviation(float additional_scalar, float pre
     postcheck;
 }
 
+__global__ void NormalizeRealSpaceStdDeviationAndCastToFp16Kernel(const float* __restrict__ input_reals,
+                                                                  __half* __restrict__ output_reals,
+                                                                  double* __restrict__ sqrt_sum_of_squares,
+                                                                  const float additional_scalar,
+                                                                  const float average_sq,
+                                                                  const float average_on_edge,
+                                                                  const int4  dims) {
+
+    int x = physical_X( );
+    if ( x >= dims.x )
+        return;
+    int y = physical_Y( );
+    if ( y >= dims.y )
+        return;
+    int z = physical_Z( );
+    if ( z >= dims.z )
+        return;
+
+    int address = d_ReturnReal1DAddressFromPhysicalCoord(x, y, z, dims.y, dims.w);
+
+    float scalar = float(sqrt_sum_of_squares[0]);
+    scalar       = rsqrtf((scalar * scalar) / additional_scalar - average_sq);
+
+    output_reals[address] = __float2half_rn((input_reals[address] - average_on_edge) * scalar);
+}
+
+void GpuImage::NormalizeRealSpaceStdDeviationAndCastToFp16(float additional_scalar, float pre_calculated_avg, float average_on_edge) {
+
+    BufferInit(b_16f);
+
+    L2Norm( );
+    ReturnLaunchParameters(dims, true);
+    precheck;
+
+    // TODO: add note on additional scalar
+    additional_scalar *= float(number_of_real_space_pixels);
+    NormalizeRealSpaceStdDeviationAndCastToFp16Kernel<<<gridDims, threadsPerBlock, 0, cudaStreamPerThread>>>(
+            real_values, real_values_fp16, (double*)&tmpValComplex[tmp_val_idx::L2Norm], additional_scalar, (pre_calculated_avg * pre_calculated_avg), average_on_edge, dims);
+    postcheck;
+}
+
 float GpuImage::ReturnSumSquareModulusComplexValues( ) {
     //
     MyDebugAssertTrue(is_in_memory_gpu, "Image not allocated");
@@ -2584,6 +2625,44 @@ void GpuImage::AddSquaredImage(GpuImage& other_image) {
     nppErr(nppiAddSquare_32f_C1IR_Ctx((const Npp32f*)other_image.real_values, pitch, (Npp32f*)real_values, pitch, npp_ROI, nppStream));
 }
 
+/**
+ * @brief Workaround for TemplateMatchingCore with use_fast_fft = true, we need an extra scaling after the transform to deal with uderflow.
+ * The n_slices allows us to do this scaling on a stack of mips by temporarily overriding the npp_ROI.height, which is also used by default
+ * when working with 3d images.
+ * 
+ * @param scale_factor 
+ * @param n_slices 
+ */
+void GpuImage::MultiplyByConstant16f(const float scale_factor, int n_slices) {
+    MyDebugAssertTrue(is_in_memory_gpu, "Memory not allocated");
+    MyDebugAssertTrue(is_in_real_space, "Image is not in real space");
+
+    NppInit( );
+    NppiSize npp_ROI_with_slices = npp_ROI_real_space;
+    size_t   fp16_pitch          = pitch / sizeof(float) * sizeof(__half);
+    npp_ROI_with_slices.height *= n_slices;
+    nppErr(nppiMulC_16f_C1IR_Ctx((Npp32f)scale_factor, (Npp16f*)real_values_16f, fp16_pitch, npp_ROI_with_slices, nppStream));
+}
+
+/**
+ * @brief Workaround for TemplateMatchingCore with use_fast_fft = true, we need an extra scaling after the transform to deal with uderflow.
+ * The n_slices allows us to do this scaling on a stack of mips by temporarily overriding the npp_ROI.height, which is also used by default
+ * when working with 3d images.
+ * 
+ * @param scale_factor 
+ * @param n_slices 
+ */
+void GpuImage::MultiplyByConstant16f(__half* input_ptr, const float scale_factor, int n_slices) {
+    MyDebugAssertTrue(is_in_memory_gpu, "Memory not allocated");
+    MyDebugAssertTrue(is_in_real_space, "Image is not in real space");
+
+    NppInit( );
+    NppiSize npp_ROI_with_slices = npp_ROI_real_space;
+    size_t   fp16_pitch          = pitch / sizeof(float) * sizeof(__half);
+    npp_ROI_with_slices.height *= n_slices;
+    nppErr(nppiMulC_16f_C1IR_Ctx((Npp32f)scale_factor, (Npp16f*)input_ptr, fp16_pitch, npp_ROI_with_slices, nppStream));
+}
+
 void GpuImage::MultiplyByConstant(float scale_factor) {
     MyDebugAssertTrue(is_in_memory_gpu, "Memory not allocated");
 
@@ -3924,6 +4003,35 @@ CopyFP16buffertoFP32KernelComplex(cufftComplex* __restrict__ complex_32f_values,
     }
 }
 
+__global__ void
+__launch_bounds__(512)
+        CopyFP32toFP16bufferAndScaleKernelReal(const cufftComplex* __restrict__ complex_32f_values,
+                                               __half2* __restrict__ complex_16f_values,
+                                               const float scalar,
+                                               const int   n_elem,
+                                               int4        dims) {
+
+    for ( int address = physical_X_1d_grid( ); address < n_elem; address += GridStride_1dGrid( ) ) {
+        float2 value = complex_32f_values[address];
+        ComplexScale((float2*)&value, scalar);
+        complex_16f_values[address] = __float22half2_rn(value);
+    }
+}
+
+void GpuImage::CopyFP32toFP16bufferAndScale(float scalar) {
+    // This is a temp impl to test FastFFT itnegration
+    MyDebugAssertTrue(is_in_memory_gpu, "Image is in not on the GPU!");
+    MyDebugAssertTrue(is_in_real_space, "Image is not in real space!");
+
+    BufferInit(b_16f);
+
+    ReturnLaunchParametersLimitSMs(1, 512);
+    precheck;
+    CopyFP32toFP16bufferAndScaleKernelReal<<<gridDims, threadsPerBlock, 0, cudaStreamPerThread>>>(
+            complex_values, complex_values_fp16, scalar, real_memory_allocated / 2, this->dims);
+    postcheck;
+}
+
 void GpuImage::CopyFP32toFP16buffer(bool deallocate_single_precision) {
     // FIXME when adding real space complex images.
     // FIXME should probably be called COPYorConvert
@@ -3931,16 +4039,18 @@ void GpuImage::CopyFP32toFP16buffer(bool deallocate_single_precision) {
 
     BufferInit(b_16f);
 
-    precheck;
     if ( is_in_real_space ) {
         ReturnLaunchParameters(dims, true);
+        precheck;
         CopyFP32toFP16bufferKernelReal<<<gridDims, threadsPerBlock, 0, cudaStreamPerThread>>>(real_values, real_values_fp16, this->dims);
+        postcheck;
     }
     else {
         ReturnLaunchParameters(dims, false);
+        precheck;
         CopyFP32toFP16bufferKernelComplex<<<gridDims, threadsPerBlock, 0, cudaStreamPerThread>>>(complex_values, complex_values_fp16, this->dims, this->physical_upper_bound_complex);
+        postcheck;
     }
-    postcheck;
 
     if ( deallocate_single_precision ) {
         cudaErr(cudaFreeAsync(real_values, cudaStreamPerThread));

@@ -353,7 +353,7 @@ libgpucore_a_SOURCES  =      gpu/core_extensions/stop_watch_gpu.cu \
                              programs/refine3d/batched_search.cu \
                              test/gpu/test_gpu_kernels.cu
 if ENABLE_FASTFFT_AM
-    libgpucore_a_SOURCES += ext/FastFFT/src/FastFFT.cu
+    libgpucore_a_SOURCES += ext/FastFFT/src/fastfft/FastFFT.cu
 endif
 
 libgpucore_OBJECTS=$(libgpucore_a_SOURCES:.cu=.o)                                                   

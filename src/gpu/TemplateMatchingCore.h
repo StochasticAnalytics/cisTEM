@@ -84,6 +84,7 @@ class TemplateMatchingCore {
 
     bool      is_running_locally;
     bool      is_gpu_3d_swapped;
+    bool      use_fast_fft;
     Histogram histogram;
 
     std::vector<TM_EmpiricalDistribution<__half, __half2>> my_dist;
@@ -142,6 +143,7 @@ class TemplateMatchingCore {
               ProgressBar*     my_progress,
               long             total_correlation_positions,
               bool             is_running_locally,
+              bool             use_fast_fft,
               int              number_of_global_search_images_to_save = 1);
 
     void RunInnerLoop(Image& projection_filter, float pixel_i, float defocus_i, int threadIDX, long& current_correlation_position);

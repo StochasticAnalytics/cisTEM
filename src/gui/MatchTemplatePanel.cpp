@@ -22,6 +22,12 @@ MatchTemplatePanel::MatchTemplatePanel(wxWindow* parent)
 
 #ifndef SHOW_CISTEM_GPU_OPTIONS
     UseGpuCheckBox->Show(false);
+    UseGPURadioYes->Enable(false);
+    UseGPURadioNo->Enable(false);
+    UseFastFFTRadioYes->Enable(false);
+    UseFastFFTRadioNo->Enable(false);
+    UseFastFFTAndCropRadioYes->Enable(false);
+    UseFastFFTAndCropRadioNo->Enable(false);
 #endif
 
     SetInfo( );
@@ -158,10 +164,14 @@ void MatchTemplatePanel::ResetDefaults( ) {
     }
 
 #ifdef SHOW_CISTEM_GPU_OPTIONS
-    UseGpuCheckBox->SetValue(true);
+    UseGPURadioYes->SetValue(true);
+    UseFastFFTRadioYes->SetValue(true);
 #else
     UseGpuCheckBox->SetValue(false); // Already disabled, but also set to un-ticked for visual consistency.
+    UseGPURadioNo->SetValue(true);
+    UseFastFFTRadioNo->SetValue(true);
 #endif
+    UseFastFFTAndCropRadioNo->SetValue(true);
 
     DefocusSearchRangeNumericCtrl->ChangeValueFloat(1200.0f);
     DefocusSearchStepNumericCtrl->ChangeValueFloat(200.0f);
@@ -387,9 +397,6 @@ void MatchTemplatePanel::OnUpdateUI(wxUpdateUIEvent& event) {
             RunProfileComboBox->Enable(true);
             GroupComboBox->Enable(true);
             ReferenceSelectPanel->Enable(true);
-#ifdef SHOW_CISTEM_GPU_OPTIONS
-            UseGpuCheckBox->Enable(true);
-#endif
 
             if ( RunProfileComboBox->GetCount( ) > 0 ) {
                 if ( image_asset_panel->ReturnGroupSize(GroupComboBox->GetSelection( )) > 0 && run_profiles_panel->run_profile_manager.ReturnTotalJobs(RunProfileComboBox->GetSelection( )) > 0 && all_images_have_defocus_values == true ) {
@@ -432,9 +439,6 @@ void MatchTemplatePanel::OnUpdateUI(wxUpdateUIEvent& event) {
             GroupComboBox->Enable(false);
             ReferenceSelectPanel->Enable(false);
             RunProfileComboBox->Enable(false);
-            UseGpuCheckBox->Enable(false); // Doesn't matter if SHOW_CISTEM_GPU_OPTIONS
-            //StartAlignmentButton->SetLabel("Stop Job");
-            //StartAlignmentButton->Enable(true);
         }
 
         if ( group_combo_is_dirty == true ) {
@@ -579,6 +583,8 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
     int number_of_pixel_size_positions;
 
     bool use_gpu;
+    bool use_fast_fft;
+    bool use_fast_fft_and_crop;
     int  max_threads = 1; // Only used for the GPU code. For GUI this comes from the run profile -> command line override as in other programs.
 
     int image_number_for_gui;
@@ -640,12 +646,9 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
 
     float min_peak_radius = MinPeakRadiusNumericCtrl->ReturnValue( );
 
-    if ( UseGpuCheckBox->GetValue( ) == true ) {
-        use_gpu = true;
-    }
-    else {
-        use_gpu = false;
-    }
+    use_gpu               = UseGPURadioYes->GetValue( ) ? true : false;
+    use_fast_fft          = UseFastFFTRadioYes->GetValue( ) ? true : false;
+    use_fast_fft_and_crop = UseFastFFTAndCropRadioYes->GetValue( ) ? true : false;
 
     wxString wanted_symmetry    = SymmetryComboBox->GetValue( );
     wanted_symmetry             = SymmetryComboBox->GetValue( ).Upper( );
@@ -877,7 +880,7 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
 
             //wxPrintf("%i = %i - %i\n", job_counter, first_search_position, last_search_position);
 
-            current_job_package.AddJob("ttffffffffffifffffbfftttttttttftiiiitttfbi", input_search_image.ToUTF8( ).data( ),
+            current_job_package.AddJob("ttffffffffffifffffbfftttttttttftiiiitttfbbbi", input_search_image.ToUTF8( ).data( ),
                                        input_reconstruction.ToUTF8( ).data( ),
                                        pixel_size,
                                        voltage_kV,
@@ -918,6 +921,8 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
                                        output_result_file.ToUTF8( ).data( ),
                                        min_peak_radius,
                                        use_gpu,
+                                       use_fast_fft,
+                                       use_fast_fft_and_crop,
                                        max_threads);
         }
 

@@ -31,10 +31,11 @@ constexpr int MAX_ALLOWED_NUMBER_OF_PEAKS = 1000; // An error will be thrown and
  * @brief Fixed number of bins in histogram used for template matching. Must be < 1024 (max number of cuda threads in a block) and must be a multiple of 32 (cistem::gpu::warp size).
  * 
  */
-constexpr int   histogram_number_of_points = 512;
-constexpr float histogram_min              = -12.5f;
-constexpr float histogram_max              = 22.5f;
-constexpr float histogram_step             = (histogram_max - histogram_min) / float(histogram_number_of_points);
+constexpr int   histogram_number_of_points   = 512;
+constexpr float histogram_min                = -12.5f;
+constexpr float histogram_max                = 22.5f;
+constexpr float histogram_step               = (histogram_max - histogram_min) / float(histogram_number_of_points);
+constexpr float histogram_first_bin_midpoint = histogram_min + (histogram_step / 2.0f); // start position
 
 enum Enum : int {
     image_size_x,

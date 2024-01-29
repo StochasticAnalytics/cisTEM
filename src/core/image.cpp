@@ -4813,6 +4813,12 @@ void Image::MultiplyAddConstant(float constant_to_multiply_by, float constant_to
     }
 }
 
+/**
+ * @brief Returns pixel wise (x - c1) * c2
+ * 
+ * @param constant_to_add 
+ * @param constant_to_multiply_by 
+ */
 void Image::AddMultiplyConstant(float constant_to_add, float constant_to_multiply_by) {
     for ( long pixel_counter = 0; pixel_counter < real_memory_allocated; pixel_counter++ ) {
         real_values[pixel_counter] = (real_values[pixel_counter] + constant_to_add) * constant_to_multiply_by;
