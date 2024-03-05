@@ -761,7 +761,6 @@ bool Reconstruct3DApp::DoCalculation( ) {
         // so they should have similar exposure (though possible very divergent defocus.) They could be sorted based on distance to the tilt axis, but I think
         // that is overkill for now.
         float previous_total_exposure = -1.f;
-        bool  calculate_new_exposure  = true;
 
 #pragma omp for schedule(dynamic, 1)
         for ( current_image_local = 0; current_image_local < input_star_file.ReturnNumberofLines( ); current_image_local++ ) {
@@ -813,7 +812,6 @@ bool Reconstruct3DApp::DoCalculation( ) {
                 if ( ! FloatsAreAlmostTheSame(previous_total_exposure, input_parameters.total_exposure) ) {
                     // Our exposure is different, so we need to force the CTF to be recalculated.
                     // This means new_ctf_image_was_calculated will always be true
-                    calculate_new_exposure              = true;
                     input_particle.ctf_image_calculated = false;
                 }
                 // else let IsAlmostEqualTo determine whether the CTF is similar enough
