@@ -756,6 +756,13 @@ bool Reconstruct3DApp::DoCalculation( ) {
 
         image_counter = 0;
 
+        // When applying the exposure filter, we need to be more careful about the check on IsCTFAlmostEqualTo which does not consider the exposure value.
+        // We also would like to not calculate this more often than needed, and the star files from emClarity leave particles mainly grouped by tilt projection,
+        // so they should have similar exposure (though possible very divergent defocus.) They could be sorted based on distance to the tilt axis, but I think
+        // that is overkill for now.
+        float previous_total_exposure = -1.f;
+        bool  calculate_new_exposure  = true;
+
 #pragma omp for schedule(dynamic, 1)
         for ( current_image_local = 0; current_image_local < input_star_file.ReturnNumberofLines( ); current_image_local++ ) {
 #pragma omp critical
@@ -800,8 +807,32 @@ bool Reconstruct3DApp::DoCalculation( ) {
             input_particle.pixel_size        = pixel_size;
             input_particle.is_masked         = false;
 
-            input_particle.InitCTFImage(input_parameters.microscope_voltage_kv, input_parameters.microscope_spherical_aberration_mm, std::max(input_parameters.amplitude_contrast, 0.001f), input_parameters.defocus_1, input_parameters.defocus_2, input_parameters.defocus_angle, input_parameters.phase_shift, input_parameters.beam_tilt_x / 1000.0f, input_parameters.beam_tilt_y / 1000.0f, input_parameters.image_shift_x, input_parameters.image_shift_y, calculate_complex_ctf);
+            // The check on similarity of the CTF is not necessarily valid when applying the exposure filter
+            // TODO: This check could be changed to look at both exposure and defocus value.
             if ( apply_exposure_filter_during_reconstruction ) {
+                if ( ! FloatsAreAlmostTheSame(previous_total_exposure, input_parameters.total_exposure) ) {
+                    // Our exposure is different, so we need to force the CTF to be recalculated.
+                    // This means new_ctf_image_was_calculated will always be true
+                    calculate_new_exposure              = true;
+                    input_particle.ctf_image_calculated = false;
+                }
+                // else let IsAlmostEqualTo determine whether the CTF is similar enough
+                // new_ctf_image_was_calculated may be true or false
+            }
+
+            bool new_ctf_image_was_calculated = input_particle.InitCTFImage(input_parameters.microscope_voltage_kv,
+                                                                            input_parameters.microscope_spherical_aberration_mm,
+                                                                            std::max(input_parameters.amplitude_contrast, 0.001f),
+                                                                            input_parameters.defocus_1,
+                                                                            input_parameters.defocus_2,
+                                                                            input_parameters.defocus_angle,
+                                                                            input_parameters.phase_shift,
+                                                                            input_parameters.beam_tilt_x / 1000.0f, // FIXME: these beam_tilt conversions should probably be in constants.h, and the names should reflect dimensions (milliradians, etc.)
+                                                                            input_parameters.beam_tilt_y / 1000.0f,
+                                                                            input_parameters.image_shift_x,
+                                                                            input_parameters.image_shift_y,
+                                                                            calculate_complex_ctf);
+            if ( apply_exposure_filter_during_reconstruction && new_ctf_image_was_calculated ) {
                 ElectronDose my_electron_dose(input_parameters.microscope_voltage_kv, input_parameters.pixel_size);
                 float        dose_filter[input_particle.ctf_image->real_memory_allocated / 2];
 

@@ -334,7 +334,7 @@ void Particle::SetLowResolutionContrast(float low_resolution_contrast) {
     ctf_parameters.SetLowResolutionContrast(low_resolution_contrast);
 }
 
-void Particle::InitCTFImage(float voltage_kV, float spherical_aberration_mm, float amplitude_contrast, float defocus_1, float defocus_2, float astigmatism_angle, float phase_shift, float beam_tilt_x, float beam_tilt_y, float particle_shift_x, float particle_shift_y, bool calculate_complex_ctf) {
+bool Particle::InitCTFImage(float voltage_kV, float spherical_aberration_mm, float amplitude_contrast, float defocus_1, float defocus_2, float astigmatism_angle, float phase_shift, float beam_tilt_x, float beam_tilt_y, float particle_shift_x, float particle_shift_y, bool calculate_complex_ctf) {
     MyDebugAssertTrue(ctf_image->is_in_memory, "ctf_image memory not allocated");
     MyDebugAssertTrue(beamtilt_image->is_in_memory, "beamtilt_image memory not allocated");
     MyDebugAssertTrue(! ctf_image->is_in_real_space, "ctf_image not in Fourier space");
@@ -342,19 +342,23 @@ void Particle::InitCTFImage(float voltage_kV, float spherical_aberration_mm, flo
 
     InitCTF(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus_1, defocus_2, astigmatism_angle, phase_shift, beam_tilt_x, beam_tilt_y, particle_shift_x, particle_shift_y);
     complex_ctf = calculate_complex_ctf;
-    if ( ctf_parameters.IsAlmostEqualTo(&current_ctf, 1 / pixel_size) == false || ! ctf_image_calculated )
+
+    bool new_ctf_image_was_calculated = false;
     // Need to calculate current_ctf_image to be inserted into ctf_reconstruction
-    {
+    if ( ctf_parameters.IsAlmostEqualTo(&current_ctf, 1 / pixel_size) == false || ! ctf_image_calculated ) {
         current_ctf = ctf_parameters;
         ctf_image->CalculateCTFImage(current_ctf, complex_ctf);
+        new_ctf_image_was_calculated = true;
     }
-    if ( ctf_parameters.BeamTiltIsAlmostEqualTo(&current_ctf) == false || ! beamtilt_image_calculated )
     // Need to calculate current_beamtilt_image to correct input image for beam tilt
-    {
+
+    if ( ctf_parameters.BeamTiltIsAlmostEqualTo(&current_ctf) == false || ! beamtilt_image_calculated ) {
         beamtilt_image->CalculateBeamTiltImage(current_ctf);
     }
     ctf_image_calculated      = true;
     beamtilt_image_calculated = true;
+
+    return new_ctf_image_was_calculated;
 }
 
 void Particle::PhaseFlipImage( ) {
