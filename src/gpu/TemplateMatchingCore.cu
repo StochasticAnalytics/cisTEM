@@ -70,14 +70,22 @@ void TemplateMatchingCore::Init(MyApp*           parent_pointer,
     if ( use_gpu_prj ) {
         // FIXME: for intial testing, we want to compare GPU and CPU projections, so make a copy
         Image tmp_vol = template_reconstruction;
-        if ( ! this->is_gpu_3d_swapped ) {
+        std::cerr << "tmp_vol is centere in box " << tmp_vol.object_is_centred_in_box << " " << tmp_vol.is_fft_centered_in_box << std::endl;
+        // if ( ! this->is_gpu_3d_swapped ) {
+        //     std::cerr << "in not block\n";
+        //     tmp_vol.SwapRealSpaceQuadrants( );
+        //     tmp_vol.BackwardFFT( );
+        //     tmp_vol.SwapFourierSpaceQuadrants(true);
+        //     this->is_gpu_3d_swapped = true;
+        // }
+        // else
+        //     std::cerr << "in block\n";
+        // // TODO: confirm you need the real-values allocated
+        if ( ! tmp_vol.is_fft_centered_in_box ) {
             tmp_vol.SwapRealSpaceQuadrants( );
             tmp_vol.BackwardFFT( );
             tmp_vol.SwapFourierSpaceQuadrants(true);
-            this->is_gpu_3d_swapped = true;
         }
-        // TODO: confirm you need the real-values allocated
-
         this->template_gpu.InitializeBasedOnCpuImage(tmp_vol, false, true);
         this->template_gpu.CopyHostToDeviceTextureComplex3d(tmp_vol);
     }

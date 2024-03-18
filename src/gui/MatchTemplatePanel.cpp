@@ -29,7 +29,8 @@ MatchTemplatePanel::MatchTemplatePanel(wxWindow* parent)
     UseFastFFTAndCropRadioYes->Enable(false);
     UseFastFFTAndCropRadioNo->Enable(false);
 #endif
-
+    // We need to allow a higher precision, otherwise, the option to resample will almost always be taken
+    HighResolutionLimitNumericCtrl->SetPrecision(4);
     SetInfo( );
     FillGroupComboBox( );
     FillRunProfileComboBox( );

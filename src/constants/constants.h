@@ -24,7 +24,7 @@ constexpr const int maximum_number_of_detections               = 1000;
 namespace match_template {
 // Values for data that are passed around in the results.
 constexpr int number_of_output_images     = 8; //mip, psi, theta, phi, pixel, defocus, sums, sqsums (scaled mip is not sent out)
-constexpr int number_of_meta_data_values  = 7; // img_x, img_y, number cccs, histogram values, pixel_size
+constexpr int number_of_meta_data_values  = 18; // img_x, img_y, number cccs, histogram values, pixel_size
 constexpr int MAX_ALLOWED_NUMBER_OF_PEAKS = 1000; // An error will be thrown and job aborted if this number of peaks is exceeded in the make template results block
 
 /**
@@ -37,6 +37,10 @@ constexpr float histogram_max                = 22.5f;
 constexpr float histogram_step               = (histogram_max - histogram_min) / float(histogram_number_of_points);
 constexpr float histogram_first_bin_midpoint = histogram_min + (histogram_step / 2.0f); // start position
 
+/**
+ * @brief Used to encode search information in result arrays passed from client to server, also stored in a small result image to be used for downstream processing.
+ * 
+ */
 enum Enum : int {
     image_size_x,
     image_size_y,
@@ -44,7 +48,18 @@ enum Enum : int {
     number_of_cccs,
     number_of_histogram_bins,
     ccc_scalar,
-    pixel_size,
+    input_pixel_size,
+    search_pixel_size,
+    image_pre_scaling_size_x, // real space padding prior to rescaling (default 0)
+    image_pre_scaling_size_y,
+    image_cropped_size_x, // size after padding and cropping, search pixel size = pixel_size * image_cropped_size / image_search_size
+    image_cropped_size_y,
+    image_search_size_x, // size used in search, usually to make nice for FFTs
+    image_search_size_y,
+    template_size,
+    template_pre_scaling_size, // assumed cubic
+    template_cropped_size,
+    template_search_size
 };
 } // namespace match_template
 
