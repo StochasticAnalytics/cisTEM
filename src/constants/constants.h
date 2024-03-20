@@ -38,7 +38,9 @@ constexpr float histogram_step               = (histogram_max - histogram_min) /
 constexpr float histogram_first_bin_midpoint = histogram_min + (histogram_step / 2.0f); // start position
 
 /**
- * @brief Used to encode search information in result arrays passed from client to server, also stored in a small result image to be used for downstream processing.
+ * @brief Used to encode search information in result arrays passed from client to server, 
+ * also stored in a small result image to be used for downstream processing. This enum may ONLY be appended, so we 
+ * can avoid version conflicts in the future.
  * 
  */
 enum Enum : int {
