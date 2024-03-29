@@ -16,8 +16,6 @@
 
 #define RESIZE_TEST
 
-// #define DO_NN_INTERP
-
 class AggregatedTemplateResult {
   public:
     int   image_number;
@@ -1159,7 +1157,6 @@ bool MatchTemplateApp::DoCalculation( ) {
     correlation_pixel_sum_of_squares_image.ZeroFFTWPadding( );
 
 #ifdef RESIZE_TEST
-#ifdef DO_NN_INTERP
     // We need to use nearest neighbor interpolation to cast all existing values back to the original size.
     Image tmp_mip, tmp_psi, tmp_phi, tmp_theta, tmp_defocus, tmp_pixel_size, tmp_sum, tmp_sum_sq;
 
@@ -1205,11 +1202,11 @@ bool MatchTemplateApp::DoCalculation( ) {
     // Make sure they are all zero
     constexpr float no_value = -std::numeric_limits<float>::max( );
     max_intensity_projection.SetToConstant(no_value);
-    best_psi.SetToConstant(0.f);
-    best_phi.SetToConstant(0.f);
-    best_theta.SetToConstant(0.f);
-    best_defocus.SetToConstant(0.f);
-    best_pixel_size.SetToConstant(0.f);
+    best_psi.SetToConstant(no_value);
+    best_phi.SetToConstant(no_value);
+    best_theta.SetToConstant(no_value);
+    best_defocus.SetToConstant(no_value);
+    best_pixel_size.SetToConstant(no_value);
     correlation_pixel_sum_image.SetToConstant(no_value);
     correlation_pixel_sum_of_squares_image.SetToConstant(no_value);
 
@@ -1262,12 +1259,8 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     int final_resize_x = original_input_image_x;
     int final_resize_y = original_input_image_y;
-#else
-    int final_resize_x = wanted_binned_size;
-    int final_resize_y = wanted_binned_size;
 
-    // Now we have the rotated values which may also be a different total amount of memory
-#endif // DO_NN_INTERP
+#endif // DO_RESIZE_TEST
 
     max_intensity_projection.Resize(final_resize_x, final_resize_y, 1);
     best_psi.Resize(final_resize_x, final_resize_y, 1);
@@ -1911,20 +1904,6 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         float max_density = input_reconstruction.ReturnAverageOfMaxN( );
         input_reconstruction.DivideByConstant(max_density);
 
-#ifndef DO_NN_INTERP
-        if ( aggregated_results[array_location].collated_data_array[cistem::match_template::template_size] != aggregated_results[array_location].collated_data_array[cistem::match_template::template_cropped_size] ) {
-            input_reconstruction.Resize(aggregated_results[array_location].collated_data_array[cistem::match_template::template_pre_scaling_size],
-                                        aggregated_results[array_location].collated_data_array[cistem::match_template::template_pre_scaling_size],
-                                        aggregated_results[array_location].collated_data_array[cistem::match_template::template_pre_scaling_size],
-                                        input_reconstruction.ReturnAverageOfRealValuesOnEdges( ));
-            input_reconstruction.ForwardFFT( );
-            input_reconstruction.Resize(aggregated_results[array_location].collated_data_array[cistem::match_template::template_cropped_size],
-                                        aggregated_results[array_location].collated_data_array[cistem::match_template::template_cropped_size],
-                                        aggregated_results[array_location].collated_data_array[cistem::match_template::template_cropped_size],
-                                        0.f);
-            input_reconstruction.BackwardFFT( );
-        }
-#endif
         input_reconstruction.ForwardFFT( );
         input_reconstruction.MultiplyByConstant(sqrtf(input_reconstruction.logical_x_dimension * input_reconstruction.logical_y_dimension * sqrtf(input_reconstruction.logical_z_dimension)));
         input_reconstruction.ZeroCentralPixel( );
