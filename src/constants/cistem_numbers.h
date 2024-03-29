@@ -9,6 +9,29 @@ inline constexpr std::complex<float> I(0.0, 1.0);
 #include <numbers>
 using namespace std::numbers;
 #else
+
+#ifndef ENABLEGPU
+
+typedef struct _int3 {
+    int x;
+    int y;
+    int z;
+} int3;
+
+typedef struct _int4 {
+    int x;
+    int y;
+    int z;
+    int w;
+} int4;
+
+typedef struct _float3 {
+    float x;
+    float y;
+    float z;
+} float3;
+
+#endif
 // For now we do not have c++20 in compiling gpu code so we need to define this for constants. Modified from /usr/include/c++/11/numbers
 /// pi
 
