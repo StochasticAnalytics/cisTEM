@@ -412,14 +412,14 @@ bool MatchTemplateApp::DoCalculation( ) {
     input_reconstruction.ReadSlices(&input_reconstruction_file, 1, input_reconstruction_file.ReturnNumberOfSlices( ));
     MyAssertTrue(input_reconstruction.IsCubic( ), "Input reconstruction should be cubic");
 
-    TemplateMatchingDataSizer data_sizer(input_image, input_reconstruction, pixel_size, padding);
+    TemplateMatchingDataSizer data_sizer(this, input_image, input_reconstruction, pixel_size, padding);
     // Handle preprocessing before any potential resizing such that we have the best shot at avoiding edge artifacts etc.
     data_sizer.PreProcessInputImage(input_image);
     data_sizer.SetImageAndTemplateSizing(high_resolution_limit_search, use_fast_fft);
     data_sizer.ResizeTemplate_preSearch(input_reconstruction);
     data_sizer.ResizeImage_preSearch(input_image);
 
-    if ( data_sizer.is_rotated_by_90 )
+    if ( data_sizer.IsRotatedBy90( ) )
         defocus_angle += 90.0f;
 
     data_sizer.PrintImageSizes( );
@@ -899,37 +899,25 @@ bool MatchTemplateApp::DoCalculation( ) {
     correlation_pixel_sum_image.ZeroFFTWPadding( );
     correlation_pixel_sum_of_squares_image.ZeroFFTWPadding( );
 
-#ifdef RESIZE_TEST
+    data_sizer.ResizeImage_postSearch(input_image,
+                                      max_intensity_projection,
+                                      best_psi,
+                                      best_phi,
+                                      best_theta,
+                                      best_defocus,
+                                      best_pixel_size,
+                                      correlation_pixel_sum_image,
+                                      correlation_pixel_sum_of_squares_image);
 
-#endif // DO_RESIZE_TEST
-
-    max_intensity_projection.Resize(final_resize_x, final_resize_y, 1);
-    best_psi.Resize(final_resize_x, final_resize_y, 1);
-    best_phi.Resize(final_resize_x, final_resize_y, 1);
-    best_theta.Resize(final_resize_x, final_resize_y, 1);
-    best_defocus.Resize(final_resize_x, final_resize_y, 1);
-    best_pixel_size.Resize(final_resize_x, final_resize_y, 1);
-    correlation_pixel_sum_image.Resize(final_resize_x, final_resize_y, 1);
-    correlation_pixel_sum_of_squares_image.Resize(final_resize_x, final_resize_y, 1);
-
-    // There is no guarantee that the newly allocated memory has any specific value in the padding jump area.
-    // TODO: An allocate method that does this would be reasonable.
-    correlation_pixel_sum_image.ZeroFFTWPadding( );
-    correlation_pixel_sum_of_squares_image.ZeroFFTWPadding( );
-
-    input_image.SwapRealSpaceQuadrants( );
-    input_image.BackwardFFT( );
-    input_image.Resize(final_resize_x, final_resize_y, 1);
-
-#else // this is a normal run
-    int final_resize_x = original_input_image_x;
-    int final_resize_y = original_input_image_y;
-#endif // RESIZE_TEST
+    // FIXME: we shouldn't need these, just here for convenience on transition
+    int final_resize_x = data_sizer.GetImageSizeX( );
+    int final_resize_y = data_sizer.GetImageSizeY( );
 
     if ( is_running_locally ) {
         delete my_progress;
 
         // Adjust the MIP by the measured mean and stddev of the full search CCC which is an estimate for the moments of the noise distribution of CCCs.
+        // FIXME: the histogram will include many non-valid values corresponding to the padding regions.
         RescaleMipAndStatisticalArraysByGlobalMeanAndStdDev(&max_intensity_projection, correlation_pixel_sum_image.real_values, correlation_pixel_sum_of_squares_image.real_values, histogram_data, total_correlation_positions);
 
         // calculate the expected threshold (from peter's paper)

@@ -16,8 +16,14 @@
 
 #include "template_matching_data_sizer.h"
 
-TemplateMatchingDataSizer::TemplateMatchingDataSizer(Image& input_image, Image& template, const float pixel_size, const float wanted_template_padding) : pixel_size(pixel_size),
-                                                                                                                                                         template_padding(wanted_template_padding) {
+TemplateMatchingDataSizer::TemplateMatchingDataSizer(MyApp* wanted_parent_ptr,
+                                                     Image& input_image,
+                                                     Image& wanted_template,
+                                                     float  wanted_pixel_size,
+                                                     float  wanted_template_padding)
+    : parent_match_template_app_ptr{wanted_parent_ptr},
+      pixel_size{wanted_pixel_size},
+      template_padding{wanted_template_padding} {
 
     MyDebugAssertTrue(pixel_size > 0.0f, "Pixel size must be greater than zero");
     // TODO: remove this constraint
@@ -27,16 +33,21 @@ TemplateMatchingDataSizer::TemplateMatchingDataSizer(Image& input_image, Image& 
     image_size.z = input_image.logical_z_dimension;
     image_size.w = (input_image.logical_x_dimension + input_image.padding_jump_value) / 2;
 
-    template_size.x = template.logical_x_dimension;
-    template_size.y = template.logical_y_dimension;
-    template_size.z = template.logical_z_dimension;
-    template_size.w = (template.logical_x_dimension + template.padding_jump_value) / 2;
+    template_size.x = wanted_template.logical_x_dimension;
+    template_size.y = wanted_template.logical_y_dimension;
+    template_size.z = wanted_template.logical_z_dimension;
+    template_size.w = (wanted_template.logical_x_dimension + wanted_template.padding_jump_value) / 2;
+};
+
+TemplateMatchingDataSizer::~TemplateMatchingDataSizer( ){
+        // Nothing to do here
 };
 
 void TemplateMatchingDataSizer::SetImageAndTemplateSizing(const float wanted_high_resolution_limit, const bool use_fast_fft) {
-
+    MyDebugAssertFalse(sizing_is_set, "Sizing has already been set");
     // Make sure we aren't trying to limit beyond Nyquist, and if < Nyquist set resampling needed to true.
     SetHighResolutionLimit(wanted_high_resolution_limit);
+    this->use_fast_fft = use_fast_fft;
 
     // Setup some limits. These could probably just go directly into their specific methods in this class
     if ( use_fast_fft ) {
@@ -67,6 +78,8 @@ void TemplateMatchingDataSizer::SetImageAndTemplateSizing(const float wanted_hig
             // and possible to rotate by 90 to make the template dimension better for fastFFT>
         }
     }
+    CheckSizing( );
+    sizing_is_set = true;
 };
 
 /**
@@ -77,6 +90,8 @@ void TemplateMatchingDataSizer::SetImageAndTemplateSizing(const float wanted_hig
  * @param input_image 
  */
 void TemplateMatchingDataSizer::PreProcessInputImage(Image& input_image) {
+    MyDebugAssertTrue(sizing_is_set, "Sizing has not been set");
+
     Curve whitening_filter;
     Curve number_of_terms;
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
@@ -94,10 +109,15 @@ void TemplateMatchingDataSizer::PreProcessInputImage(Image& input_image) {
     input_image.ZeroCentralPixel( );
     input_image.DivideByConstant(sqrtf(input_image.ReturnSumOfSquares( )));
     input_image.BackwardFFT( );
+
+    // Saving a copy of the pre-processed image for later use to determine peak heights not damped by resampling.
+    // TODO: we can also use this (with z > )
+    pre_processed_image.at(0) = input_image;
 };
 
 void TemplateMatchingDataSizer::CheckSizing( ) {
-    use_fast_fft = false;
+    // TODO: remove thiss
+    const bool use_fast_fft_and_crop = false;
     if ( use_fast_fft ) {
         // We currently can only use FastFFT for power of 2 size images and template
         // TODO: the limit on templates should be trivial to remove since they are padded.
@@ -107,7 +127,7 @@ void TemplateMatchingDataSizer::CheckSizing( ) {
         //       b) split into two images and pad each to either 4k x 4k (possibly a bit slower and not yet supported)
         // FIXME:
         if ( image_search_size.x != image_search_size.y ) {
-            SendInfo("FastFFT currently only supports square images, padding smaller up\n");
+            parent_match_template_app_ptr->SendInfo("FastFFT currently only supports square images, padding smaller up\n");
         }
         if ( image_search_size.x > image_search_size.y ) {
             image_search_size.y = image_search_size.x;
@@ -116,22 +136,25 @@ void TemplateMatchingDataSizer::CheckSizing( ) {
             image_search_size.x = image_search_size.y;
         }
         if ( image_search_size.x > 4096 * 2 || image_search_size.y > 4096 * 2 ) {
-            SendError("FastFFT only supports images up to 8192x8192\n");
+            parent_match_template_app_ptr->SendError("FastFFT only supports images up to 8192x8192\n");
         }
         else if ( image_search_size.x > 4096 || image_search_size.y > 4096 ) {
             if ( use_fast_fft_and_crop ) {
-                SendInfo("Warning, cropping image to max 4096x4096\n");
+                parent_match_template_app_ptr->SendInfo("Warning, cropping image to max 4096x4096\n");
                 image_search_size.x = std::min(image_search_size.x, 4096);
                 image_search_size.y = std::min(image_search_size.y, 4096);
             }
             else {
-                SendInfo("Use of FastFFT for images larger than 4k x 4k is likely a pessimation\n");
+                parent_match_template_app_ptr->SendInfo("Use of FastFFT for images larger than 4k x 4k is likely a pessimation\n");
             }
         }
     }
+    else {
+        // TODO: what else should be be verifying - rotation if warranted and power of two / nice siziing?
+    }
 };
 
-void int TemplateMatchingDataSizer::GetGenericFFTSize( ) {
+int TemplateMatchingDataSizer::GetGenericFFTSize( ) {
     // for 5760 this will return
     // 5832 2     2     2     3     3     3     3     3     3 - this is ~ 10% faster than the previous solution BUT
     int factor_result_pos{ };
@@ -141,11 +164,11 @@ void int TemplateMatchingDataSizer::GetGenericFFTSize( ) {
         factor_result_neg = ReturnClosestFactorizedLower(image_size.x, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
         factor_result_pos = ReturnClosestFactorizedUpper(image_size.x, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
 
-        if ( (float)(image_size.x - factor_result_neg) < (float)input_reconstruction.logical_x_dimension * max_reduction_by_fraction_of_reference ) {
+        if ( (float)(image_size.x - factor_result_neg) < float(template_size.x) * max_reduction_by_fraction_of_reference ) {
             image_search_size.x = factor_result_neg;
             break;
         }
-        if ( (float)(-image_size.x + factor_result_pos) < (float)input_image.logical_x_dimension * max_increase_by_fraction_of_image ) {
+        if ( (float)(-image_size.x + factor_result_pos) < float(image_size.x) * max_increase_by_fraction_of_image ) {
             image_search_size.x = factor_result_pos;
             break;
         }
@@ -155,11 +178,11 @@ void int TemplateMatchingDataSizer::GetGenericFFTSize( ) {
         factor_result_neg = ReturnClosestFactorizedLower(image_size.y, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
         factor_result_pos = ReturnClosestFactorizedUpper(image_size.y, prime_value, true, MUST_BE_FACTOR_OF_FOUR);
 
-        if ( (float)(image_size.y - factor_result_neg) < (float)input_reconstruction_file.ReturnYSize( ) * max_reduction_by_fraction_of_reference ) {
+        if ( (float)(image_size.y - factor_result_neg) < float(template_size.y) * max_reduction_by_fraction_of_reference ) {
             image_search_size.y = factor_result_neg;
             break;
         }
-        if ( (float)(-image_size.y + factor_result_pos) < (float)input_image.logical_y_dimension * max_increase_by_fraction_of_image ) {
+        if ( (float)(-image_size.y + factor_result_pos) < float(image_size.y) * max_increase_by_fraction_of_image ) {
             image_search_size.y = factor_result_pos;
             break;
         }
@@ -212,7 +235,7 @@ void TemplateMatchingDataSizer::GetResampledFFTSize( ) {
         closest_3d_binned_size++;
     float closest_3d_binning = float(template_size.x) / float(closest_3d_binned_size);
 
-    wxPrintf("input sizes are %i %i\n", image_size.x, image.size.y);
+    wxPrintf("input sizes are %i %i\n", image_size.x, image_size.y);
     wxPrintf("input 3d sizes are %i %i\n", template_size.x, template_size.y);
     // Print out some values for testing
     wxPrintf("wanted image bin factor and new pixel size = %f %f\n", actual_image_binning, pixel_size * actual_image_binning);
@@ -229,10 +252,12 @@ void TemplateMatchingDataSizer::GetResampledFFTSize( ) {
         wxPrintf("Warning, the pixel size of the input 3d and the input images are not the same\n");
 
         for ( padding_3d = 1; padding_3d < 100; padding_3d++ ) {
-            closest_3d_binned_size = int((template_size + padding_3d) / actual_image_binning + 0.5f);
+            // NOTE: this line assumes a cubic volume
+            closest_3d_binned_size = int((template_size.x + padding_3d) / actual_image_binning + 0.5f);
             if ( IsOdd(closest_3d_binned_size) )
                 closest_3d_binned_size++;
-            closest_3d_binning = float(template_size + padding_3d) / float(closest_3d_binned_size);
+            // NOTE: this line assumes a cubic volume
+            closest_3d_binning = float(template_size.x + padding_3d) / float(closest_3d_binned_size);
 
             wxPrintf("after padding by %d closest 3d bin factor and new pixel size = %f %f\n", padding_3d, closest_3d_binning, closest_3d_binning * pixel_size);
 
@@ -314,9 +339,7 @@ void TemplateMatchingDataSizer::ResizeTemplate_preSearch(Image& template_image) 
 };
 
 void TemplateMatchingDataSizer::ResizeTemplate_postSearch(Image& template_image) {
-    if ( template_cropped_size.x != template_size.x ) {
-        template_image.Resize(template_cropped_size.x, template_cropped_size.y, template_cropped_size.z);
-    }
+    MyAssertTrue(false, "Not yet implemented");
 };
 
 void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
@@ -338,8 +361,9 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
     input_image.AddGaussianNoise(1.0f);
     tmp_sq.ClipInto(&input_image, 0.0f, false, 1.0f, 0, 0, 0, true);
 
+    // NOTE: rotation must always be the FINAL step in pre-processing / resizing and it is always the first to be inverted at the end.
 #ifdef ROTATEFORSPEED
-    if ( ! is_power_of_two(factorizable_x) && is_power_of_two(factorizable_y) ) {
+    if ( ! is_power_of_two(image_search_size.x) && is_power_of_two(image_search_size.y) ) {
         // The speedup in the FFT for better factorization is also dependent on the dimension. The full transform (in cufft anyway) is faster if the best dimension is on X.
         // TODO figure out how to check the case where there is no factor of two, but one dimension is still faster. Probably getting around to writing an explicit planning tool would be useful.
         if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
@@ -370,6 +394,12 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
                                                        Image& correlation_pixel_sum_image,
                                                        Image& correlation_pixel_sum_of_squares_image) {
 
+    MyDebugAssertTrue(sizing_is_set, "Sizing has not been set");
+    MyDebugAssertTrue(is_rotated_by_90 == use_fast_fft, "Rotating the search image when using fastfft does  not make sense given the current square size restriction of FastFFT");
+    MyDebugAssertTrue(max_intensity_projection.logical_x_dimension <= (is_rotated_by_90 ? image_size.y : image_size.x), "The max intensity projection is larger than the original image size");
+    MyDebugAssertTrue(max_intensity_projection.logical_y_dimension <= (is_rotated_by_90 ? image_size.x : image_size.y), "The max intensity projection is larger than the original image size");
+    MyDebugAssertTrue(pre_processed_image.at(0).is_in_memory, "The pre-processed image is not in memory");
+    MyDebugAssertFalse(pre_processed_image.at(1).is_in_memory, "Chunking the search image is not supported, but the pre-processed image has allocated mem in the second chunk");
     // Work through the transformations backward to get to the original image size
     if ( is_rotated_by_90 ) {
         // swap back all the images prior to re-sizing
@@ -399,67 +429,41 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
 
     // original size -> pad to square -> crop to binned -> pad to fourier
     // The new images at the square binned size (remove the padding to power of two)
-    tmp_mip.Allocate(wanted_binned_size, wanted_binned_size, 1);
-    tmp_psi.Allocate(wanted_binned_size, wanted_binned_size, 1);
-    tmp_phi.Allocate(wanted_binned_size, wanted_binned_size, 1);
-    tmp_theta.Allocate(wanted_binned_size, wanted_binned_size, 1);
-    tmp_defocus.Allocate(wanted_binned_size, wanted_binned_size, 1); // NOTE: we could avoid allocating this if we know it is not needed
-    tmp_pixel_size.Allocate(wanted_binned_size, wanted_binned_size, 1); // NOTE: we could avoid allocating this if we know it is not needed
-    tmp_sum.Allocate(wanted_binned_size, wanted_binned_size, 1);
-    tmp_sum_sq.Allocate(wanted_binned_size, wanted_binned_size, 1);
+    tmp_mip.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_psi.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_phi.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_theta.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_defocus.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_pixel_size.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_sum.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_sum_sq.Allocate(image_size.x, image_size.y, image_size.z, true);
 
-    max_intensity_projection.ClipInto(&tmp_mip);
-    best_psi.ClipInto(&tmp_psi);
-    best_phi.ClipInto(&tmp_phi);
-    best_theta.ClipInto(&tmp_theta);
-    best_defocus.ClipInto(&tmp_defocus);
-    best_pixel_size.ClipInto(&tmp_pixel_size);
-    correlation_pixel_sum_image.ClipInto(&tmp_sum);
-    correlation_pixel_sum_of_squares_image.ClipInto(&tmp_sum_sq);
-
-    // // Now reset the images to the original size
-    // max_intensity_projection.Allocate(original_input_image_x, original_input_image_y, 1);
-    // best_psi.Allocate(original_input_image_x, original_input_image_y, 1);
-    // best_phi.Allocate(original_input_image_x, original_input_image_y, 1);
-    // best_theta.Allocate(original_input_image_x, original_input_image_y, 1);
-    // best_defocus.Allocate(original_input_image_x, original_input_image_y, 1);
-    // best_pixel_size.Allocate(original_input_image_x, original_input_image_y, 1);
-    // Now reset the images to the original size
-
-    // Setting to the max_sq_size to map back the resampled values
-    max_intensity_projection.Allocate(max_square_size, max_square_size, 1);
-    best_psi.Allocate(max_square_size, max_square_size, 1);
-    best_phi.Allocate(max_square_size, max_square_size, 1);
-    best_theta.Allocate(max_square_size, max_square_size, 1);
-    best_defocus.Allocate(max_square_size, max_square_size, 1);
-    best_pixel_size.Allocate(max_square_size, max_square_size, 1);
-    correlation_pixel_sum_image.Allocate(max_square_size, max_square_size, 1);
-    correlation_pixel_sum_of_squares_image.Allocate(max_square_size, max_square_size, 1);
-
-    // Make sure they are all zero
+    // We'll fill all the images with -FLT_MAX to indicate to downstream code that the values are not valid measurements from an experiment.
     constexpr float no_value = -std::numeric_limits<float>::max( );
-    max_intensity_projection.SetToConstant(no_value);
-    best_psi.SetToConstant(no_value);
-    best_phi.SetToConstant(no_value);
-    best_theta.SetToConstant(no_value);
-    best_defocus.SetToConstant(no_value);
-    best_pixel_size.SetToConstant(no_value);
-    correlation_pixel_sum_image.SetToConstant(no_value);
-    correlation_pixel_sum_of_squares_image.SetToConstant(no_value);
+    tmp_mip.SetToConstant(no_value);
+    tmp_psi.SetToConstant(no_value);
+    tmp_phi.SetToConstant(no_value);
+    tmp_theta.SetToConstant(no_value);
+    tmp_defocus.SetToConstant(no_value);
+    tmp_pixel_size.SetToConstant(no_value);
+    tmp_sum.SetToConstant(no_value);
+    tmp_sum_sq.SetToConstant(no_value);
 
-    long nn_counter          = 0;
-    long out_of_bounds_value = 0;
-    long address;
-    for ( int j = 0; j < tmp_mip.logical_y_dimension; j++ ) {
-        int y_offset_from_origin = j - tmp_mip.physical_address_of_box_center_y;
-        for ( int i = 0; i < tmp_mip.logical_x_dimension; i++ ) {
+    long        nn_counter          = 0;
+    long        out_of_bounds_value = 0;
+    long        address;
+    const float actual_image_binning = search_pixel_size / pixel_size;
+
+    for ( int j = 0; j < max_intensity_projection.logical_y_dimension; j++ ) {
+        int y_offset_from_origin = j - max_intensity_projection.physical_address_of_box_center_y;
+        for ( int i = 0; i < max_intensity_projection.logical_x_dimension; i++ ) {
             // Get this pixels offset from the center of the box
-            int x_offset_from_origin = i - tmp_mip.physical_address_of_box_center_x;
+            int x_offset_from_origin = i - max_intensity_projection.physical_address_of_box_center_x;
 
             // Scale by the binning
             // TODO: not sure if round or truncation (floor) makes more sense here
-            int x_non_binned = max_intensity_projection.physical_address_of_box_center_x + myroundint(float(x_offset_from_origin) * actual_image_binning);
-            int y_non_binned = max_intensity_projection.physical_address_of_box_center_y + myroundint(float(y_offset_from_origin) * actual_image_binning);
+            int x_non_binned = tmp_mip.physical_address_of_box_center_x + myroundint(float(x_offset_from_origin) * actual_image_binning);
+            int y_non_binned = tmp_mip.physical_address_of_box_center_y + myroundint(float(y_offset_from_origin) * actual_image_binning);
 
             if ( x_non_binned >= 0 && x_non_binned < max_intensity_projection.logical_x_dimension && y_non_binned >= 0 && y_non_binned < max_intensity_projection.logical_y_dimension )
                 address = max_intensity_projection.ReturnReal1DAddressFromPhysicalCoord(x_non_binned, y_non_binned, 0);
@@ -487,13 +491,20 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
         nn_counter += tmp_mip.padding_jump_value;
     }
 
-    // Get rid of the -FLT_MAX values
-    for ( int i = 0; i < max_intensity_projection.real_memory_allocated; i++ ) {
-        if ( max_intensity_projection.real_values[i] == no_value )
-            max_intensity_projection.real_values[i] = 0.0f;
-    }
-    std::cerr << "\nThere were " << out_of_bounds_value << " out of bounds values\n";
+    MyDebugAssertTrue(out_of_bounds_value == 0, "There are out of bounds values in calculating the NN interpolation of the max intensity projection");
 
-    int final_resize_x = original_input_image_x;
-    int final_resize_y = original_input_image_y;
+    // Now have the input images consume the resampled images, deallocating the search results and stealing the memory
+    max_intensity_projection.Consume(&tmp_mip);
+    best_psi.Consume(&tmp_psi);
+    best_phi.Consume(&tmp_phi);
+    best_theta.Consume(&tmp_theta);
+    best_defocus.Consume(&tmp_defocus);
+    best_pixel_size.Consume(&tmp_pixel_size);
+    correlation_pixel_sum_image.Consume(&tmp_sum);
+    correlation_pixel_sum_of_squares_image.Consume(&tmp_sum_sq);
+
+    // There is no guarantee that the newly allocated memory has any specific value in the padding jump area.
+    // TODO: An allocate method that does this would be reasonable.
+    correlation_pixel_sum_image.ZeroFFTWPadding( );
+    correlation_pixel_sum_of_squares_image.ZeroFFTWPadding( );
 };

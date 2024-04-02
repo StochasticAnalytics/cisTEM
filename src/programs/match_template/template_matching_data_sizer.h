@@ -1,7 +1,11 @@
 #ifndef __SRC_PROGRAMS_MATCH_TEMPLATE_TEMPLATE_MATCHING_DATA_SIZER_H_
 #define __SRC_PROGRAMS_MATCH_TEMPLATE_TEMPLATE_MATCHING_DATA_SIZER_H_
 
-#define RESIZE_TEST
+#include "../../constants/constants.h"
+
+constexpr bool  MUST_BE_POWER_OF_TWO                   = false; // Required for half-precision xforms
+constexpr bool  MUST_BE_FACTOR_OF_FOUR                 = true; // May be faster
+constexpr float max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
 
 /**
  * @brief This class is used to optionally resample, pad or cut into chunks the search image.
@@ -12,8 +16,10 @@
  */
 class TemplateMatchingDataSizer {
 
-    constexpr bool MUST_BE_POWER_OF_TWO   = false; // Required for half-precision xforms
-    constexpr bool MUST_BE_FACTOR_OF_FOUR = true; // May be faster
+    // Keep a copy of the original image following pre-processing but no resizing. We'll use this
+    // to deterimine what the peak would be if the image were not resized.
+    // We are currently supporting at most 2 chunks (to make a k3 without super res into 2 4k images)
+    std::array<Image, 2> pre_processed_image;
 
     // This is a non-data owning class, but we want references to the underlying image/template data
     int4 image_size;
@@ -32,10 +38,10 @@ class TemplateMatchingDataSizer {
     float high_resolution_limit{-1.f};
     bool  resampling_is_needed{false};
     bool  is_rotated_by_90{false};
+    bool  use_fast_fft{false};
+    bool  sizing_is_set{false};
 
     std::vector<int> primes;
-
-    constexpr float max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
 
     float max_increase_by_fraction_of_image;
 
@@ -44,14 +50,17 @@ class TemplateMatchingDataSizer {
     void GetResampledFFTSize( );
     void CheckSizing( );
 
+    MyApp* parent_match_template_app_ptr;
+
   public:
-    TemplateMatchingDataSizer(Image& input_image, Image& template, const float pixel_size, const float wanted_template_padding);
+    TemplateMatchingDataSizer(MyApp* parent_match_template_app_ptr, Image& input_image, Image& wanted_template, float wanted_pixel_size, float wanted_template_padding);
+    ~TemplateMatchingDataSizer( );
 
     // Don't allow copy or move. FIXME: if we don't add any dynamically allocated data, we can remove this.
-    TemplateMatchingDataSizer(const TemplateMatchingDataSizer&)            = delete;
-    TemplateMatchingDataSizer& operator=(const TemplateMatchingDataSizer&) = delete;
-    TemplateMatchingDataSizer(TemplateMatchingDataSizer&&)                 = delete;
-    TemplateMatchingDataSizer& operator=(TemplateMatchingDataSizer&&)      = delete;
+    // TemplateMatchingDataSizer(const TemplateMatchingDataSizer&)            = delete;
+    // TemplateMatchingDataSizer& operator=(const TemplateMatchingDataSizer&) = delete;
+    // TemplateMatchingDataSizer(TemplateMatchingDataSizer&&)                 = delete;
+    // TemplateMatchingDataSizer& operator=(TemplateMatchingDataSizer&&)      = delete;
 
     void SetImageAndTemplateSizing(const float wanted_high_resolution_limit, const bool use_fast_fft);
     void PreProcessInputImage(Image& input_image);
@@ -59,8 +68,19 @@ class TemplateMatchingDataSizer {
     void ResizeTemplate_preSearch(Image& template_image);
     void ResizeTemplate_postSearch(Image& template_image);
 
+    // All statistical images (mip, psi etc.) are originally allocated based on the pre-processed input_image size,
+    // and so only the input image needs attention at the outset. Following the search, all statistical images
+    // will also need to be resized.
     void ResizeImage_preSearch(Image& input_image);
-    void ResizeImage_postSearch(Image& input_image);
+    void ResizeImage_postSearch(Image& input_image,
+                                Image& max_intensity_projection,
+                                Image& best_psi,
+                                Image& best_phi,
+                                Image& best_theta,
+                                Image& best_defocus,
+                                Image& best_pixel_size,
+                                Image& correlation_pixel_sum_image,
+                                Image& correlation_pixel_sum_of_squares_image);
 
     inline void PrintImageSizes( ) {
         if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
@@ -68,8 +88,24 @@ class TemplateMatchingDataSizer {
         }
     }
 
-    inline bool IsResamplingNeeded( ) {
+    inline bool IsResamplingNeeded( ) const {
         return resampling_is_needed;
+    }
+
+    inline bool IsRotatedBy90( ) const {
+        return is_rotated_by_90;
+    }
+
+    inline int GetImageSizeX( ) const {
+        return image_search_size.x;
+    }
+
+    inline int GetImageSizeY( ) const {
+        return image_search_size.y;
+    }
+
+    inline int GetTemplateSizeX( ) const {
+        return template_search_size.x;
     }
 };
 
