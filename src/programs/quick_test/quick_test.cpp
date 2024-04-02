@@ -35,5 +35,10 @@ void QuickTestApp::DoInteractiveUserInput( ) {
 
 bool QuickTestApp::DoCalculation( ) {
 
+    std::vector<int> primes = {2, 3, 5, 7, 11, 13, 17};
+    for ( auto& prime_value : primes ) {
+        int factor_result_pos = ReturnClosestFactorizedUpper(2048, prime_value, true, 4);
+        std::cerr << "Factor: " << prime_value << " Result: " << factor_result_pos << std::endl;
+    }
     return true;
 }

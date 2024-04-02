@@ -4,7 +4,7 @@
 #include "../../constants/constants.h"
 
 constexpr bool  MUST_BE_POWER_OF_TWO                   = false; // Required for half-precision xforms
-constexpr bool  MUST_BE_FACTOR_OF_FOUR                 = true; // May be faster
+constexpr int   MUST_BE_FACTOR_OF                      = 0; // May be faster
 constexpr float max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
 
 /**
@@ -27,6 +27,17 @@ class TemplateMatchingDataSizer {
     int4 image_cropped_size;
     int4 image_search_size;
 
+    // Logical coordinates in the search image frame corresponding to non-padding regions
+    // These are the only values mapped by NN interp to the result image and are
+    // needed ahead of the search to exclude padding from the histogram and ideally also from FastFFT calculations.
+    // NOTE: these values do NOT accound for any potential 90 degree rotation about Z
+    int search_image_valid_area_lower_bound_x;
+    int search_image_valid_area_lower_bound_y;
+    int search_image_valid_area_upper_bound_x;
+    int search_image_valid_area_upper_bound_y;
+
+    long number_of_valid_search_pixels;
+
     int4 template_size;
     int4 template_pre_scaling_size;
     int4 template_cropped_size;
@@ -40,15 +51,21 @@ class TemplateMatchingDataSizer {
     bool  is_rotated_by_90{false};
     bool  use_fast_fft{false};
     bool  sizing_is_set{false};
+    bool  padding_is_set{false};
+    bool  valid_bounds_are_set{false};
+    bool  image_is_split_into_chunks{false};
 
     std::vector<int> primes;
 
     float max_increase_by_fraction_of_image;
 
     void SetHighResolutionLimit(const float wanted_high_resolution_limit);
-    int  GetGenericFFTSize( );
+    void GetGenericFFTSize( );
     void GetResampledFFTSize( );
     void CheckSizing( );
+
+    void GetInputImageToEvenAndSquareOrPrimeFactoredSizePadding(int& pre_padding_x, int& pre_padding_y, int& post_padding_x, int& post_padding_y);
+    void SetValidSearchImageIndiciesFromPadding(const int pre_padding_x, const int pre_padding_y, const int post_padding_x, const int post_padding_y);
 
     MyApp* parent_match_template_app_ptr;
 
@@ -106,6 +123,17 @@ class TemplateMatchingDataSizer {
 
     inline int GetTemplateSizeX( ) const {
         return template_search_size.x;
+    }
+
+    inline long GetNumberOfValidSearchPixels( ) const {
+        return number_of_valid_search_pixels;
+    }
+
+    inline void GetValidXYPhysicalIdicies(int& lower_x, int& lower_y, int& upper_x, int& upper_y) {
+        lower_x = search_image_valid_area_lower_bound_x;
+        lower_y = search_image_valid_area_lower_bound_y;
+        upper_x = search_image_valid_area_upper_bound_x;
+        upper_y = search_image_valid_area_upper_bound_y;
     }
 };
 

@@ -24,7 +24,7 @@ constexpr const int maximum_number_of_detections               = 1000;
 namespace match_template {
 // Values for data that are passed around in the results.
 constexpr int number_of_output_images     = 8; //mip, psi, theta, phi, pixel, defocus, sums, sqsums (scaled mip is not sent out)
-constexpr int number_of_meta_data_values  = 18; // img_x, img_y, number cccs, histogram values, pixel_size
+constexpr int number_of_meta_data_values  = 8; // img_x, img_y, number cccs, histogram values, pixel_size
 constexpr int MAX_ALLOWED_NUMBER_OF_PEAKS = 1000; // An error will be thrown and job aborted if this number of peaks is exceeded in the make template results block
 
 /**
@@ -47,21 +47,12 @@ enum Enum : int {
     image_size_x,
     image_size_y,
     image_real_memory_allocated,
-    number_of_cccs,
+    number_of_angles_searched,
     number_of_histogram_bins,
     ccc_scalar,
     input_pixel_size,
-    search_pixel_size,
-    image_pre_scaling_size_x, // real space padding prior to rescaling (default 0)
-    image_pre_scaling_size_y,
-    image_cropped_size_x, // size after padding and cropping, search pixel size = pixel_size * image_cropped_size / image_search_size
-    image_cropped_size_y,
-    image_search_size_x, // size used in search, usually to make nice for FFTs
-    image_search_size_y,
-    template_size,
-    template_pre_scaling_size, // assumed cubic
-    template_cropped_size,
-    template_search_size
+    number_of_valid_search_pixels
+
 };
 } // namespace match_template
 

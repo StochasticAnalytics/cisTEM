@@ -880,8 +880,12 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
             //			wxString directory_for_results = main_frame->ReturnScratchDirectory();
 
             //wxPrintf("%i = %i - %i\n", job_counter, first_search_position, last_search_position);
-
-            current_job_package.AddJob("ttffffffffffifffffbfftttttttttftiiiitttfbbbi", input_search_image.ToUTF8( ).data( ),
+            // These are accessed directly via index in MatchTemplateApp::MasterHandleProgramDefinedResult
+            // any changes here MUST be propagated there, e.g. jobs[0].arguments[37].ReturnStringArgument( );
+            // NOTE: also, please keep in sync with the manual command line arguments.
+            // TODO: this is a bit of a mess.
+            current_job_package.AddJob("ttffffffffffifffffbfftttttttttftiiiitttfbbbi",
+                                       input_search_image.ToUTF8( ).data( ),
                                        input_reconstruction.ToUTF8( ).data( ),
                                        pixel_size,
                                        voltage_kV,
@@ -909,7 +913,7 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
                                        best_defocus_output_file.ToUTF8( ).data( ),
                                        best_pixel_size_output_file.ToUTF8( ).data( ),
                                        scaled_mip_output_file.ToUTF8( ).data( ),
-                                       correlation_avg_output_file.ToUTF8( ).data( ),
+                                       correlation_std_output_file.ToUTF8( ).data( ),
                                        wanted_symmetry.ToUTF8( ).data( ),
                                        wanted_in_plane_angular_step,
                                        output_histogram_file.ToUTF8( ).data( ),
@@ -917,7 +921,7 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
                                        last_search_position,
                                        image_number_for_gui,
                                        number_of_jobs_per_image_in_gui,
-                                       correlation_std_output_file.ToUTF8( ).data( ),
+                                       correlation_avg_output_file.ToUTF8( ).data( ),
                                        directory_for_results.ToUTF8( ).data( ),
                                        output_result_file.ToUTF8( ).data( ),
                                        min_peak_radius,
