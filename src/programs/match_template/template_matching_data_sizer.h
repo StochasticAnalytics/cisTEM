@@ -60,8 +60,7 @@ class TemplateMatchingDataSizer {
     float max_increase_by_fraction_of_image;
 
     void SetHighResolutionLimit(const float wanted_high_resolution_limit);
-    void GetGenericFFTSize( );
-    void GetResampledFFTSize( );
+    void GetFFTSize( );
     void CheckSizing( );
 
     void GetInputImageToEvenAndSquareOrPrimeFactoredSizePadding(int& pre_padding_x, int& pre_padding_y, int& post_padding_x, int& post_padding_y);
@@ -80,7 +79,9 @@ class TemplateMatchingDataSizer {
     // TemplateMatchingDataSizer& operator=(TemplateMatchingDataSizer&&)      = delete;
 
     void SetImageAndTemplateSizing(const float wanted_high_resolution_limit, const bool use_fast_fft);
-    void PreProcessInputImage(Image& input_image);
+    void PreProcessInputImage(Image& input_image, Curve& whitening_filter, bool swap_real_space_quadrants = false, bool normalize_to_variance_one = true);
+
+    void PreProcessResizedInputImage(Image& input_image, Curve& whitening_filter) { PreProcessInputImage(input_image, whitening_filter, false); }
 
     void ResizeTemplate_preSearch(Image& template_image);
     void ResizeTemplate_postSearch(Image& template_image);

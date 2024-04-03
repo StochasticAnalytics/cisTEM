@@ -348,9 +348,6 @@ bool MatchTemplateApp::DoCalculation( ) {
     ImageFile input_search_image_file;
     ImageFile input_reconstruction_file;
 
-    Curve whitening_filter;
-    Curve number_of_terms;
-
     input_search_image_file.OpenFile(input_search_images_filename.ToStdString( ), false);
     input_reconstruction_file.OpenFile(input_reconstruction_filename.ToStdString( ), false);
 
@@ -390,7 +387,9 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     TemplateMatchingDataSizer data_sizer(this, input_image, input_reconstruction, input_pixel_size, padding);
     // Handle preprocessing before any potential resizing such that we have the best shot at avoiding edge artifacts etc.
-    data_sizer.PreProcessInputImage(input_image);
+    Curve whitening_filter;
+
+    data_sizer.PreProcessInputImage(input_image, whitening_filter);
     data_sizer.SetImageAndTemplateSizing(high_resolution_limit_search, use_fast_fft);
     data_sizer.ResizeTemplate_preSearch(input_reconstruction);
     data_sizer.ResizeImage_preSearch(input_image);
@@ -507,31 +506,10 @@ bool MatchTemplateApp::DoCalculation( ) {
     // for now, I am assuming the MTF has been applied already.
     // work out the filter to just whiten the image..
 
-    whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
-    number_of_terms.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
-
     wxDateTime my_time_out;
     wxDateTime my_time_in;
 
-    // remove outliers
-    // This won't work for movie frames (13.0 is used in unblur) TODO use poisson stats
-    input_image.ReplaceOutliersWithMean(5.0f);
-    input_image.ForwardFFT( );
-    input_image.SwapRealSpaceQuadrants( );
-
-    input_image.ZeroCentralPixel( );
-    input_image.Compute1DPowerSpectrumCurve(&whitening_filter, &number_of_terms);
-    whitening_filter.SquareRoot( );
-    whitening_filter.Reciprocal( );
-    whitening_filter.MultiplyByConstant(1.0f / whitening_filter.ReturnMaximumValue( ));
-
-    input_image.ApplyCurveFilter(&whitening_filter);
-    input_image.ZeroCentralPixel( );
-
-    input_image.DivideByConstant(sqrtf(input_image.ReturnSumOfSquares( ) / float(input_image.number_of_real_space_pixels)));
-    //input_image.QuickAndDirtyWriteSlice("/tmp/white.mrc", 1);
-    //exit(-1);
-
+    data_sizer.PreProcessResizedInputImage(input_image, whitening_filter);
     // count total searches (lazy)
 
     total_correlation_positions  = 0;
