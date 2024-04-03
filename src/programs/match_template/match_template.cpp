@@ -102,7 +102,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     wxString correlation_avg_output_file;
     wxString scaled_mip_output_file;
 
-    float pixel_size              = 1.0f;
+    float input_pixel_size        = 1.0f;
     float voltage_kV              = 300.0f;
     float spherical_aberration_mm = 2.7f;
     float amplitude_contrast      = 0.07f;
@@ -143,7 +143,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     correlation_avg_output_file = my_input->GetFilenameFromUser("Correlation average value", "The file for saving the average value of all correlation images", "corr_average.mrc", false);
     correlation_std_output_file = my_input->GetFilenameFromUser("Correlation variance output file", "The file for saving the variance of all correlation images", "corr_variance.mrc", false);
     output_histogram_file       = my_input->GetFilenameFromUser("Output histogram of correlation values", "histogram of all correlation values", "histogram.txt", false);
-    pixel_size                  = my_input->GetFloatFromUser("Pixel size of images (A)", "Pixel size of input images in Angstroms", "1.0", 0.0);
+    input_pixel_size            = my_input->GetFloatFromUser("Pixel size of images (A)", "Pixel size of input images in Angstroms", "1.0", 0.0);
     voltage_kV                  = my_input->GetFloatFromUser("Beam energy (keV)", "The energy of the electron beam used to image the sample in kilo electron volts", "300.0", 0.0);
     spherical_aberration_mm     = my_input->GetFloatFromUser("Spherical aberration (mm)", "Spherical aberration of the objective lens in millimeters", "2.7");
     amplitude_contrast          = my_input->GetFloatFromUser("Amplitude contrast", "Assumed amplitude contrast", "0.07", 0.0, 1.0);
@@ -185,7 +185,7 @@ void MatchTemplateApp::DoInteractiveUserInput( ) {
     my_current_job.ManualSetArguments("ttffffffffffifffffbfftttttttttftiiiitttfbbbi",
                                       input_search_images.ToUTF8( ).data( ), // 1
                                       input_reconstruction.ToUTF8( ).data( ), // 2
-                                      pixel_size, // 3
+                                      input_pixel_size, // 3
                                       voltage_kV, // 4
                                       spherical_aberration_mm, // 5
                                       amplitude_contrast, // 6
@@ -243,7 +243,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     wxString input_search_images_filename  = my_current_job.arguments[0].ReturnStringArgument( );
     wxString input_reconstruction_filename = my_current_job.arguments[1].ReturnStringArgument( );
-    float    pixel_size                    = my_current_job.arguments[2].ReturnFloatArgument( );
+    float    input_pixel_size              = my_current_job.arguments[2].ReturnFloatArgument( );
     float    voltage_kV                    = my_current_job.arguments[3].ReturnFloatArgument( );
     float    spherical_aberration_mm       = my_current_job.arguments[4].ReturnFloatArgument( );
     float    amplitude_contrast            = my_current_job.arguments[5].ReturnFloatArgument( );
@@ -355,7 +355,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     input_reconstruction_file.OpenFile(input_reconstruction_filename.ToStdString( ), false);
 
     //
-    remove_npix_from_edge = myroundint(particle_radius_angstroms / pixel_size);
+    remove_npix_from_edge = myroundint(particle_radius_angstroms / input_pixel_size);
     //    wxPrintf("Removing %d pixels around the edge.\n", remove_npix_from_edge);
 
     Image input_image;
@@ -385,12 +385,10 @@ bool MatchTemplateApp::DoCalculation( ) {
     int   max_padding = 0; // To restrict histogram calculation
     float histogram_padding_trim_rescale; // scale the counts to
 
-    float input_pixel_size = pixel_size;
-
     input_reconstruction.ReadSlices(&input_reconstruction_file, 1, input_reconstruction_file.ReturnNumberOfSlices( ));
     MyAssertTrue(input_reconstruction.IsCubic( ), "Input reconstruction should be cubic");
 
-    TemplateMatchingDataSizer data_sizer(this, input_image, input_reconstruction, pixel_size, padding);
+    TemplateMatchingDataSizer data_sizer(this, input_image, input_reconstruction, input_pixel_size, padding);
     // Handle preprocessing before any potential resizing such that we have the best shot at avoiding edge artifacts etc.
     data_sizer.PreProcessInputImage(input_image);
     data_sizer.SetImageAndTemplateSizing(high_resolution_limit_search, use_fast_fft);
@@ -402,6 +400,11 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     data_sizer.PrintImageSizes( );
 
+    // FIXME this should be changed out for the upper and lower bounds in x and y
+    int lx, ly, hx, hy;
+    data_sizer.GetValidXYPhysicalIdicies(lx, ly, hx, hy);
+    max_padding = std::max(lx, ly);
+    wxPrintf("Max padding is %d\n", max_padding);
 #ifdef DEBUG
     if ( use_fast_fft )
         SendInfo("Using FastFFT is\n\n");
@@ -450,7 +453,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     CTF input_ctf;
-    input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, pixel_size, deg_2_rad(phase_shift));
+    input_ctf.Init(voltage_kV, spherical_aberration_mm, amplitude_contrast, defocus1, defocus2, defocus_angle, 0.0, 0.0, 0.0, data_sizer.GetSearchPixelSize( ), deg_2_rad(phase_shift));
 
     // assume cube
 
@@ -474,7 +477,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     }
 
     if ( in_plane_angular_step <= 0 ) {
-        psi_step = rad_2_deg(pixel_size / mask_radius_search);
+        psi_step = rad_2_deg(data_sizer.GetSearchPixelSize( ) / mask_radius_search);
         psi_step = 360.0 / int(360.0 / psi_step + 0.5);
     }
     else {
@@ -489,7 +492,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     // search grid
 
     // TODO: when checking the impact of limiting the resolution, it may be worthwile to NOT limit the number of search positions
-    global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, pixel_size / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
+    global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, data_sizer.GetSearchPixelSize( ) / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
 
     // TODO 2x check me - w/o this O symm at least is broken
     if ( my_symmetry.StartsWith("C") ) {
@@ -631,7 +634,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     for ( size_i = -myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i <= myroundint(float(pixel_size_search_range) / float(pixel_size_step)); size_i++ ) {
 
         //        template_reconstruction.CopyFrom(&input_reconstruction);
-        input_reconstruction.ChangePixelSize(&template_reconstruction, (pixel_size + float(size_i) * pixel_size_step) / pixel_size, 0.001f, true);
+        input_reconstruction.ChangePixelSize(&template_reconstruction, (data_sizer.GetSearchPixelSize( ) + float(size_i) * pixel_size_step) / data_sizer.GetSearchPixelSize( ), 0.001f, true);
         //    template_reconstruction.ForwardFFT();
         template_reconstruction.ZeroCentralPixel( );
         template_reconstruction.SwapRealSpaceQuadrants( );
@@ -657,7 +660,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
                     {
                         GPU[tIDX].Init(this, template_reconstruction, input_image, current_projection,
-                                       pixel_size_search_range, pixel_size_step, pixel_size,
+                                       pixel_size_search_range, pixel_size_step, data_sizer.GetSearchPixelSize( ),
                                        defocus_search_range, defocus_step, defocus1, defocus2,
                                        psi_max, psi_start, psi_step,
                                        angles, global_euler_search,
@@ -682,8 +685,8 @@ bool MatchTemplateApp::DoCalculation( ) {
         for ( defocus_i = -myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i <= myroundint(float(defocus_search_range) / float(defocus_step)); defocus_i++ ) {
 
             // make the projection filter, which will be CTF * whitening filter
-            input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / pixel_size, (defocus2 + float(defocus_i) * defocus_step) / pixel_size, deg_2_rad(defocus_angle));
-            //            input_ctf.SetDefocus((defocus1 + 200) / pixel_size, (defocus2 + 200) / pixel_size, deg_2_rad(defocus_angle));
+            input_ctf.SetDefocus((defocus1 + float(defocus_i) * defocus_step) / data_sizer.GetSearchPixelSize( ), (defocus2 + float(defocus_i) * defocus_step) / data_sizer.GetSearchPixelSize( ), deg_2_rad(defocus_angle));
+            //            input_ctf.SetDefocus((defocus1 + 200) / data_sizer.GetSearchPixelSize(), (defocus2 + 200) / data_sizer.GetSearchPixelSize(), deg_2_rad(defocus_angle));
             projection_filter.CalculateCTFImage(input_ctf);
             projection_filter.ApplyCurveFilter(&whitening_filter);
 
@@ -909,7 +912,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 
         temp_image.CopyFrom(&max_intensity_projection);
         // temp_image.Resize(final_resize_x, final_resize_y, 1, temp_image.ReturnAverageOfRealValuesOnEdges( ));
-        temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
 
         //        max_intensity_projection.DividePixelWise(correlation_pixel_sum_of_squares);
         for ( int i = 0; i < max_intensity_projection.real_memory_allocated; i++ ) {
@@ -918,22 +921,22 @@ bool MatchTemplateApp::DoCalculation( ) {
             }
         }
         // max_intensity_projection.Resize(final_resize_x, final_resize_y, 1, max_intensity_projection.ReturnAverageOfRealValuesOnEdges( ));
-        max_intensity_projection.QuickAndDirtyWriteSlice(scaled_mip_output_file.ToStdString( ), 1, pixel_size);
+        max_intensity_projection.QuickAndDirtyWriteSlice(scaled_mip_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
 
         // correlation_pixel_sum_image.Resize(final_resize_x, final_resize_y, 1, correlation_pixel_sum_image.ReturnAverageOfRealValuesOnEdges( ));
-        correlation_pixel_sum_image.QuickAndDirtyWriteSlice(correlation_avg_output_file.ToStdString( ), 1, pixel_size);
+        correlation_pixel_sum_image.QuickAndDirtyWriteSlice(correlation_avg_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
         // correlation_pixel_sum_of_squares_image.Resize(final_resize_x, final_resize_y, 1, correlation_pixel_sum_of_squares_image.ReturnAverageOfRealValuesOnEdges( ));
-        correlation_pixel_sum_of_squares_image.QuickAndDirtyWriteSlice(correlation_std_output_file.ToStdString( ), 1, pixel_size);
+        correlation_pixel_sum_of_squares_image.QuickAndDirtyWriteSlice(correlation_std_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
         // best_psi.Resize(final_resize_x, final_resize_y, 1, 0.0f);
-        best_psi.QuickAndDirtyWriteSlice(best_psi_output_file.ToStdString( ), 1, pixel_size);
+        best_psi.QuickAndDirtyWriteSlice(best_psi_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
         // best_theta.Resize(final_resize_x, final_resize_y, 1, 0.0f);
-        best_theta.QuickAndDirtyWriteSlice(best_theta_output_file.ToStdString( ), 1, pixel_size);
+        best_theta.QuickAndDirtyWriteSlice(best_theta_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
         // best_phi.Resize(final_resize_x, final_resize_y, 1, 0.0f);
-        best_phi.QuickAndDirtyWriteSlice(best_phi_output_file.ToStdString( ), 1, pixel_size);
+        best_phi.QuickAndDirtyWriteSlice(best_phi_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
         // best_defocus.Resize(final_resize_x, final_resize_y, 1, 0.0f);
-        best_defocus.QuickAndDirtyWriteSlice(best_defocus_output_file.ToStdString( ), 1, pixel_size);
+        best_defocus.QuickAndDirtyWriteSlice(best_defocus_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
         // best_pixel_size.Resize(final_resize_x, final_resize_y, 1, 0.0f);
-        best_pixel_size.QuickAndDirtyWriteSlice(best_pixel_size_output_file.ToStdString( ), 1, pixel_size);
+        best_pixel_size.QuickAndDirtyWriteSlice(best_pixel_size_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
 
         // write out histogram..
 
@@ -999,7 +1002,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             result[cm_t::number_of_histogram_bins]      = histogram_number_of_points;
             result[cm_t::number_of_angles_searched]     = actual_number_of_angles_searched;
             result[cm_t::ccc_scalar]                    = 1.0f; // (float)sqrt_input_pixels is redundant, but we need all the results to calculate the scaling from the global CCC moments
-            result[cm_t::input_pixel_size]              = input_pixel_size;
+            result[cm_t::input_pixel_size]              = data_sizer.GetPixelSize( );
             result[cm_t::number_of_valid_search_pixels] = data_sizer.GetNumberOfValidSearchPixels( );
         }
 
@@ -1152,7 +1155,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         int   image_size_x                  = aggregated_results[array_location].collated_data_array[cistem::match_template::image_size_x];
         int   image_size_y                  = aggregated_results[array_location].collated_data_array[cistem::match_template::image_size_y];
         int   image_real_memory_allocated   = aggregated_results[array_location].collated_data_array[cistem::match_template::image_real_memory_allocated];
-        float pixel_size                    = aggregated_results[array_location].collated_data_array[cistem::match_template::input_pixel_size];
+        float input_pixel_size              = aggregated_results[array_location].collated_data_array[cistem::match_template::input_pixel_size];
         long  number_of_valid_search_pixels = aggregated_results[array_location].collated_data_array[cistem::match_template::number_of_valid_search_pixels];
 
         temp_image.Allocate(int(image_size_x), int(image_size_y), true);
@@ -1174,7 +1177,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         }
 
         wxPrintf("Writing result %i\n", aggregated_results[array_location].image_number - 1);
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[21].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[21].ReturnStringArgument( ), 1, false, input_pixel_size);
         temp_image.Deallocate( );
 
         // psi
@@ -1185,7 +1188,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         }
 
         //temp_image.QuickAndDirtyWriteSlice(wxString::Format("%s/psi.mrc", directory_for_writing_results).ToStdString(), aggregated_results[array_location].image_number);
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[22].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[22].ReturnStringArgument( ), 1, false, input_pixel_size);
         psi_image.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
@@ -1196,7 +1199,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_theta_data[pixel_counter];
         }
 
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[23].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[23].ReturnStringArgument( ), 1, false, input_pixel_size);
         theta_image.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
@@ -1207,7 +1210,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_phi_data[pixel_counter];
         }
 
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[24].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[24].ReturnStringArgument( ), 1, false, input_pixel_size);
         phi_image.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
@@ -1218,7 +1221,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_defocus_data[pixel_counter];
         }
 
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[25].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[25].ReturnStringArgument( ), 1, false, input_pixel_size);
         defocus_image.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
@@ -1229,7 +1232,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_pixel_size_data[pixel_counter];
         }
 
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[26].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[26].ReturnStringArgument( ), 1, false, input_pixel_size);
         pixel_size_image.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
@@ -1267,18 +1270,18 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         float estimated_radius_in_pixels = current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[39].ReturnFloatArgument( );
 
         // The factor of 4 (two particle diameters) is in no way optimized.
-        float objective_aperture_resolution = pixel_size * estimated_radius_in_pixels * 4.0f;
+        float objective_aperture_resolution = input_pixel_size * estimated_radius_in_pixels * 4.0f;
         float mask_falloff                  = 7.f;
 
         // std::cerr << "Inside test filtered mip" << std::endl;
         // std::cerr << "Objective aperture resolution: " << objective_aperture_resolution << std::endl;
         // std::cerr << "Mask falloff: " << mask_falloff << std::endl;
-        // std::cerr << "Pixel size: " << pixel_size << std::endl;
+        // std::cerr << "Pixel size: " << input_pixel_size << std::endl;
         // std::cerr << "Estimated radius in pixels: " << estimated_radius_in_pixels << std::endl;
 
         Image temp_filtered_img;
         temp_filtered_img.Allocate(temp_image.logical_x_dimension, temp_image.logical_y_dimension, true);
-        temp_filtered_img.ReturnCosineMaskBandpassResolution(pixel_size, objective_aperture_resolution, mask_falloff);
+        temp_filtered_img.ReturnCosineMaskBandpassResolution(input_pixel_size, objective_aperture_resolution, mask_falloff);
 
         // Direct at the avg image first
         for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
@@ -1316,7 +1319,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_mip_data[pixel_counter];
         }
 
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[27].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[27].ReturnStringArgument( ), 1, false, input_pixel_size);
         scaled_mip.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
@@ -1327,7 +1330,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_pixel_sums[pixel_counter];
         }
 
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[36].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[36].ReturnStringArgument( ), 1, false, input_pixel_size);
         temp_image.Deallocate( );
 
         // square sums
@@ -1337,7 +1340,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_pixel_square_sums[pixel_counter];
         }
 
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[28].ReturnStringArgument( ), 1, false, pixel_size);
+        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[28].ReturnStringArgument( ), 1, false, input_pixel_size);
         temp_image.Deallocate( );
 
         // histogram
@@ -1432,7 +1435,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         // loop until the found peak is below the threshold
 
 #ifdef CISTEM_TEST_FILTERED_MIP
-        int exclusion_radius = pixel_size / objective_aperture_resolution;
+        int exclusion_radius = input_pixel_size / objective_aperture_resolution;
 #else
         int exclusion_radius = input_reconstruction.logical_x_dimension / cistem::fraction_of_box_size_to_exclude_for_border + 1;
 #endif
@@ -1458,7 +1461,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             current_peak.x = current_peak.x + scaled_mip.physical_address_of_box_center_x;
             current_peak.y = current_peak.y + scaled_mip.physical_address_of_box_center_y;
 
-            // arguments[2] = pixel_size
+            // arguments[2] = input_pixel_size
             temp_peak_info.x_pos = current_peak.x * current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[2].ReturnFloatArgument( ); // RETURNING IN ANGSTROMS
             temp_peak_info.y_pos = current_peak.y * current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[2].ReturnFloatArgument( ); // RETURNING IN ANGSTROMS
 
@@ -1498,8 +1501,8 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             }
 
             //        wxPrintf("Peak %4i at x, y, psi, theta, phi, defocus, pixel size = %12.6f, %12.6f, %12.6f, %12.6f, %12.6f, %12.6f, %12.6f : %10.6f\n", number_of_peaks_found, current_peak.x, current_peak.y, current_psi, current_theta, current_phi, current_defocus, current_pixel_size, current_peak.value);
-            //        coordinates[0] = current_peak.x * pixel_size;
-            //        coordinates[1] = current_peak.y * pixel_size;
+            //        coordinates[0] = current_peak.x * input_pixel_size;
+            //        coordinates[1] = current_peak.y * input_pixel_size;
             ////        coordinates[2] = binned_pixel_size * (slab.physical_address_of_box_center_z - binned_reconstruction.physical_address_of_box_center_z) - current_defocus;
             //        coordinates[2] = binned_pixel_size * slab.physical_address_of_box_center_z - current_defocus;
             //        coordinate_file.WriteLine(coordinates);
@@ -1536,7 +1539,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
 
         // save the output image
 
-        result_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[38].ReturnStringArgument( ), 1, true, pixel_size);
+        result_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[38].ReturnStringArgument( ), 1, true, input_pixel_size);
 
         // tell the gui that this result is available...
 
@@ -1582,7 +1585,7 @@ void AggregatedTemplateResult::AddResult(float* result_array, long array_size, i
     int   image_size_x                = result_array[cistem::match_template::image_size_x];
     int   image_size_y                = result_array[cistem::match_template::image_size_y];
     int   image_real_memory_allocated = result_array[cistem::match_template::image_real_memory_allocated];
-    float pixel_size                  = result_array[cistem::match_template::input_pixel_size];
+    float input_pixel_size            = result_array[cistem::match_template::input_pixel_size];
 
     // FIXME: change to nullptr
     if ( collated_data_array == NULL ) {

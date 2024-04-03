@@ -43,8 +43,8 @@ class TemplateMatchingDataSizer {
     int4 template_cropped_size;
     int4 template_search_size;
 
-    float pixel_size{ };
-    float search_pixel_size{ };
+    float pixel_size{0.f};
+    float search_pixel_size{0.f};
     float template_padding{ };
     float high_resolution_limit{-1.f};
     bool  resampling_is_needed{false};
@@ -126,7 +126,23 @@ class TemplateMatchingDataSizer {
     }
 
     inline long GetNumberOfValidSearchPixels( ) const {
+        MyDebugAssertTrue(valid_bounds_are_set, "Valid bounds not set");
         return number_of_valid_search_pixels;
+    }
+
+    inline float GetPixelSize( ) const {
+        MyDebugAssertFalse(pixel_size == 0.0f, "Pixel size not set");
+        return pixel_size;
+    }
+
+    inline float GetHighResolutionLimit( ) const {
+        MyDebugAssertFalse(high_resolution_limit == -1.0f, "High resolution limit not set");
+        return high_resolution_limit;
+    }
+
+    inline float GetSearchPixelSize( ) const {
+        MyDebugAssertFalse(search_pixel_size == 0.0f, "Search pixel size not set");
+        return search_pixel_size;
     }
 
     inline void GetValidXYPhysicalIdicies(int& lower_x, int& lower_y, int& upper_x, int& upper_y) {

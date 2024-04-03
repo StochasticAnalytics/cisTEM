@@ -16,6 +16,8 @@
 
 #include "template_matching_data_sizer.h"
 
+// #define DEBUG_IMG_OUTPUT "/tmp"
+
 TemplateMatchingDataSizer::TemplateMatchingDataSizer(MyApp* wanted_parent_ptr,
                                                      Image& input_image,
                                                      Image& wanted_template,
@@ -94,6 +96,10 @@ void TemplateMatchingDataSizer::PreProcessInputImage(Image& input_image) {
     whitening_filter.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
     number_of_terms.SetupXAxis(0.0, 0.5 * sqrtf(2.0), int((input_image.logical_x_dimension / 2.0 + 1.0) * sqrtf(2.0) + 1.0));
     input_image.ReplaceOutliersWithMean(5.0f);
+#ifdef DEBUG_IMG_OUTPUT
+    if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
+        input_image.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/input_image.mrc", 1);
+#endif
     input_image.ForwardFFT( );
 
     input_image.ZeroCentralPixel( );
@@ -107,6 +113,10 @@ void TemplateMatchingDataSizer::PreProcessInputImage(Image& input_image) {
     input_image.DivideByConstant(sqrtf(input_image.ReturnSumOfSquares( )));
     input_image.BackwardFFT( );
 
+#ifdef DEBUG_IMG_OUTPUT
+    if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
+        input_image.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/input_image_whitened.mrc", 1);
+#endif
     // Saving a copy of the pre-processed image for later use to determine peak heights not damped by resampling.
     // TODO: we can also use this (with z > )
     pre_processed_image.at(0) = input_image;
@@ -411,11 +421,33 @@ void TemplateMatchingDataSizer::SetHighResolutionLimit(const float wanted_high_r
 };
 
 void TemplateMatchingDataSizer::ResizeTemplate_preSearch(Image& template_image) {
+
+#ifdef DEBUG_IMG_OUTPUT
+    if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
+        // Print out the size of each step
+        wxPrintf("template_size = %i %i %i\n", template_size.x, template_size.y, template_size.z);
+        wxPrintf("template_pre_scaling_size = %i %i %i\n", template_pre_scaling_size.x, template_pre_scaling_size.y, template_pre_scaling_size.z);
+        wxPrintf("template_cropped_size = %i %i %i\n", template_cropped_size.x, template_cropped_size.y, template_cropped_size.z);
+        wxPrintf("template_search_size = %i %i %i\n", template_search_size.x, template_search_size.y, template_search_size.z);
+        template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image.mrc", 1, template_size.z / 2);
+    }
+#endif
     template_image.Resize(template_pre_scaling_size.x, template_pre_scaling_size.y, template_pre_scaling_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
+#ifdef DEBUG_IMG_OUTPUT
+    template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized_pre_scale.mrc", 1, template_pre_scaling_size.z / 2);
+#endif
     template_image.ForwardFFT( );
     template_image.Resize(template_cropped_size.x, template_cropped_size.y, template_cropped_size.z);
     template_image.BackwardFFT( );
+#ifdef DEBUG_IMG_OUTPUT
+    template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized_cropped.mrc", 1, template_cropped_size.z / 2);
+#endif
     template_image.Resize(template_search_size.x, template_search_size.y, template_search_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
+#ifdef DEBUG_IMG_OUTPUT
+    if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
+        template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized.mrc", 1, template_search_size.z / 2);
+    }
+#endif
 };
 
 void TemplateMatchingDataSizer::ResizeTemplate_postSearch(Image& template_image) {
@@ -429,19 +461,32 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
         Image tmp_sq;
 
         tmp_sq.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, true);
-        tmp_sq.AddGaussianNoise(1.0f);
+        tmp_sq.FillWithNoiseFromNormalDistribution(0.f, 1.0f);
 
         input_image.ClipInto(&tmp_sq, 0.0f, false, 1.0f, 0, 0, 0, true);
-
+#ifdef DEBUG_IMG_OUTPUT
+        if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
+            tmp_sq.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/tmp_sq.mrc", 1);
+#endif
         tmp_sq.ForwardFFT( );
         tmp_sq.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
         tmp_sq.ZeroCentralPixel( );
         tmp_sq.DivideByConstant(sqrtf(tmp_sq.ReturnSumOfSquares( )));
         tmp_sq.BackwardFFT( );
+#ifdef DEBUG_IMG_OUTPUT
+        if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
+            tmp_sq.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/tmp_sq_resized.mrc", 1);
+#endif
 
         input_image.Allocate(image_search_size.x, image_search_size.y, image_search_size.z, true);
-        input_image.AddGaussianNoise(1.0f);
+        input_image.FillWithNoiseFromNormalDistribution(0.f, 1.0f);
         tmp_sq.ClipInto(&input_image, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+#ifdef DEBUG_IMG_OUTPUT
+        if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
+            input_image.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/input_image_resized.mrc", 1);
+        DEBUG_ABORT;
+#endif
     }
 
 // NOTE: rotation must always be the FINAL step in pre-processing / resizing and it is always the first to be inverted at the end.
@@ -457,6 +502,10 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
         // input_reconstruction.RotateInPlaceAboutZBy90Degrees(true, preserve_origin);
         // The amplitude spectrum is also rotated
         is_rotated_by_90 = true;
+#ifdef DEBUG_IMG_OUTPUT
+        if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
+            input_image.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/input_image_rotated.mrc", 1);
+#endif
     }
     else {
         if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
@@ -521,6 +570,15 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
     tmp_sum.Allocate(image_size.x, image_size.y, image_size.z, true);
     tmp_sum_sq.Allocate(image_size.x, image_size.y, image_size.z, true);
 
+    Image debug_mip;
+    debug_mip.CopyFrom(&max_intensity_projection);
+    debug_mip.ForwardFFT( );
+    tmp_mip.SetToConstant(0.f);
+    tmp_mip.ForwardFFT( );
+    debug_mip.ClipInto(&tmp_mip);
+    tmp_mip.BackwardFFT( );
+    tmp_mip.QuickAndDirtyWriteSlice("/tmp/tmp_mip.mrc", 1);
+
     // We'll fill all the images with -FLT_MAX to indicate to downstream code that the values are not valid measurements from an experiment.
     constexpr float no_value = -std::numeric_limits<float>::max( );
     tmp_mip.SetToConstant(no_value);
@@ -540,7 +598,7 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
     // Loop over the (possibly) binned image coordinates
     for ( int j = search_image_valid_area_lower_bound_y; j <= search_image_valid_area_upper_bound_y; j++ ) {
         int y_offset_from_origin = j - max_intensity_projection.physical_address_of_box_center_y;
-        for ( int i = search_image_valid_area_lower_bound_x; i <= search_image_valid_area_upper_bound_y; i++ ) {
+        for ( int i = search_image_valid_area_lower_bound_x; i <= search_image_valid_area_upper_bound_x; i++ ) {
             // Get this pixels offset from the center of the box
             int x_offset_from_origin = i - max_intensity_projection.physical_address_of_box_center_x;
 
