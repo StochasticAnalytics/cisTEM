@@ -81,7 +81,7 @@ class TemplateMatchingDataSizer {
     void SetImageAndTemplateSizing(const float wanted_high_resolution_limit, const bool use_fast_fft);
     void PreProcessInputImage(Image& input_image, Curve& whitening_filter, bool swap_real_space_quadrants = false, bool normalize_to_variance_one = true);
 
-    void PreProcessResizedInputImage(Image& input_image, Curve& whitening_filter) { PreProcessInputImage(input_image, whitening_filter, false); }
+    void PreProcessResizedInputImage(Image& input_image, Curve& whitening_filter) { PreProcessInputImage(input_image, whitening_filter, true, false); }
 
     void ResizeTemplate_preSearch(Image& template_image);
     void ResizeTemplate_postSearch(Image& template_image);

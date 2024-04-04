@@ -510,6 +510,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     wxDateTime my_time_in;
 
     data_sizer.PreProcessResizedInputImage(input_image, whitening_filter);
+
     // count total searches (lazy)
 
     total_correlation_positions  = 0;

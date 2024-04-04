@@ -44,6 +44,8 @@ void TemplateMatchingCore::Init(MyApp*           parent_pointer,
 {
 
     MyDebugAssertFalse(object_initialized_, "Init must only be called once!");
+    MyDebugAssertFalse(wanted_input_image.is_in_real_space, "Input image must be in Fourier space");
+    MyDebugAssertTrue(wanted_input_image.is_in_memory, "Input image must be in memory");
     object_initialized_ = true;
 
     this->first_search_position          = first_search_position;
