@@ -572,14 +572,8 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
 
     // original size -> pad to square -> crop to binned -> pad to fourier
     // The new images at the square binned size (remove the padding to power of two)
-    tmp_mip.Allocate(image_size.x, image_size.y, image_size.z, true);
-    tmp_phi.Allocate(image_size.x, image_size.y, image_size.z, true);
-    tmp_theta.Allocate(image_size.x, image_size.y, image_size.z, true);
-    tmp_psi.Allocate(image_size.x, image_size.y, image_size.z, true);
-    tmp_defocus.Allocate(image_size.x, image_size.y, image_size.z, true);
-    tmp_pixel_size.Allocate(image_size.x, image_size.y, image_size.z, true);
-    tmp_sum.Allocate(image_size.x, image_size.y, image_size.z, true);
-    tmp_sum_sq.Allocate(image_size.x, image_size.y, image_size.z, true);
+#ifdef USE_NEAREST_NEIGHBOR_INTERPOLATION
+    constexpr bool allocate_in_real_space = true;
 
     // We'll fill all the images with -FLT_MAX to indicate to downstream code that the values are not valid measurements from an experiment.
     constexpr float no_value = -std::numeric_limits<float>::max( );
@@ -591,6 +585,15 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
     tmp_pixel_size.SetToConstant(no_value);
     tmp_sum.SetToConstant(no_value);
     tmp_sum_sq.SetToConstant(no_value);
+
+    tmp_mip.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
+    tmp_phi.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
+    tmp_theta.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
+    tmp_psi.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
+    tmp_defocus.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
+    tmp_pixel_size.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
+    tmp_sum.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
+    tmp_sum_sq.Allocate(image_size.x, image_size.y, image_size.z, allocate_in_real_space);
 
     long        searched_image_address = 0;
     long        out_of_bounds_value    = 0;
@@ -659,4 +662,77 @@ void TemplateMatchingDataSizer::ResizeImage_postSearch(Image& input_image,
     best_pixel_size.Consume(&tmp_pixel_size);
     correlation_pixel_sum_image.Consume(&tmp_sum);
     correlation_pixel_sum_of_squares_image.Consume(&tmp_sum_sq);
+#else
+    constexpr bool allocate_in_real_space = false;
+
+    constexpr float no_value = 0.0f;
+
+    tmp_mip.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+    tmp_phi.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+    tmp_theta.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+    tmp_psi.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+    tmp_defocus.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+    tmp_pixel_size.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+    tmp_sum.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+    tmp_sum_sq.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, allocate_in_real_space);
+
+    // Resize from any fourier padding to the cropped size
+    max_intensity_projection.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
+    best_phi.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
+    best_theta.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
+    best_psi.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
+    best_defocus.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
+    correlation_pixel_sum_image.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
+    correlation_pixel_sum_of_squares_image.Resize(image_cropped_size.x, image_cropped_size.y, image_cropped_size.z);
+
+    // Now undo the fourier binning
+    max_intensity_projection.ForwardFFT( );
+    max_intensity_projection.ClipInto(&tmp_mip, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_mip.BackwardFFT( );
+    max_intensity_projection.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_mip.ClipInto(&max_intensity_projection, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+    // This probably doesn't make sense for anything but the mip, avg, and std.
+    best_phi.ForwardFFT( );
+    best_phi.ClipInto(&tmp_phi, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_phi.BackwardFFT( );
+    best_phi.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_phi.ClipInto(&best_phi, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+    best_theta.ForwardFFT( );
+    best_theta.ClipInto(&tmp_theta, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_theta.BackwardFFT( );
+    best_theta.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_theta.ClipInto(&best_theta, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+    best_psi.ForwardFFT( );
+    best_psi.ClipInto(&tmp_psi, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_psi.BackwardFFT( );
+    best_psi.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_psi.ClipInto(&best_psi, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+    best_defocus.ForwardFFT( );
+    best_defocus.ClipInto(&tmp_defocus, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_defocus.BackwardFFT( );
+    best_defocus.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_defocus.ClipInto(&best_defocus, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+    best_pixel_size.ForwardFFT( );
+    best_pixel_size.ClipInto(&tmp_pixel_size, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_pixel_size.BackwardFFT( );
+    best_pixel_size.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_pixel_size.ClipInto(&best_pixel_size, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+    correlation_pixel_sum_image.ForwardFFT( );
+    correlation_pixel_sum_image.ClipInto(&tmp_sum, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_sum.BackwardFFT( );
+    correlation_pixel_sum_image.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_sum.ClipInto(&correlation_pixel_sum_image, 0.0f, false, 1.0f, 0, 0, 0, true);
+
+    correlation_pixel_sum_of_squares_image.ForwardFFT( );
+    correlation_pixel_sum_of_squares_image.ClipInto(&tmp_sum_sq, 0.0f, false, 1.0f, 0, 0, 0, true);
+    tmp_sum_sq.BackwardFFT( );
+    correlation_pixel_sum_of_squares_image.Allocate(image_size.x, image_size.y, image_size.z, true);
+    tmp_sum_sq.ClipInto(&correlation_pixel_sum_of_squares_image, 0.0f, false, 1.0f, 0, 0, 0, true);
+#endif
 };

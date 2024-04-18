@@ -3,6 +3,8 @@
 
 #include "../../constants/constants.h"
 
+// #define USE_NEAREST_NEIGHBOR_INTERPOLATION
+
 constexpr bool  MUST_BE_POWER_OF_TWO                   = false; // Required for half-precision xforms
 constexpr int   MUST_BE_FACTOR_OF                      = 0; // May be faster
 constexpr float max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
