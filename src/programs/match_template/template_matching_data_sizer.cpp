@@ -469,6 +469,7 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
     MyDebugAssertTrue(sizing_is_set, "Sizing has not been set");
 
     if ( resampling_is_needed ) {
+        wxPrintf("Resampling the input image\n");
         Image tmp_sq;
 
         tmp_sq.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, true);
@@ -490,6 +491,7 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
 #endif
 
         input_image.Allocate(image_search_size.x, image_search_size.y, image_search_size.z, true);
+        wxPrintf("Filling with noise from normal\n");
         input_image.FillWithNoiseFromNormalDistribution(0.f, 1.0f);
         tmp_sq.ClipInto(&input_image, 0.0f, false, 1.0f, 0, 0, 0, true);
 
@@ -498,6 +500,9 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
             input_image.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/input_image_resized.mrc", 1);
         DEBUG_ABORT;
 #endif
+    }
+    else {
+        wxPrintf("not resampling\n");
     }
 
 // NOTE: rotation must always be the FINAL step in pre-processing / resizing and it is always the first to be inverted at the end.

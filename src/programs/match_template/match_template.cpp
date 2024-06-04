@@ -501,6 +501,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         }
     }
 
+    // Normally this is called in EulerSearch::InitGrid, but we need to re-call it here to get the search positions WITHOUT the default randomization to phi (azimuthal angle.)
     global_euler_search.CalculateGridSearchPositions(false);
 
     // for now, I am assuming the MTF has been applied already.

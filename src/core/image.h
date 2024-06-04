@@ -194,6 +194,7 @@ class Image {
 
     void FillWithNoiseFromNormalDistribution(float wanted_mean_value, float wanted_sigma_value) {
         SetToConstant(0.f);
+        wxPrintf("In fill with noise from normal\n");
         AddNoise(GAUSSIAN, wanted_mean_value, wanted_sigma_value);
     }
 

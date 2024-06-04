@@ -677,6 +677,7 @@ void MatchTemplatePanel::StartEstimationClick(wxCommandEvent& event) {
         }
     }
 
+    // Normally this is called in EulerSearch::InitGrid, but we need to re-call it here to get the search positions WITHOUT the default randomization to phi (azimuthal angle.)
     current_image_euler_search->CalculateGridSearchPositions(false);
 
     if ( use_gpu ) {
