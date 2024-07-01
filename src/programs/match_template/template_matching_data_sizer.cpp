@@ -188,7 +188,7 @@ void TemplateMatchingDataSizer::GetFFTSize( ) {
             wxPrintf("Warning, the pixel size of the input 3d and the input images are not the same\n");
 
             // FIXME: we need an objective function for this that can be used to penalize sizes > 512
-            for ( padding_3d = 1; padding_3d < 100; padding_3d++ ) {
+            for ( padding_3d = 1; padding_3d < MAX_3D_PADDING; padding_3d++ ) {
                 // NOTE: this line assumes a cubic volume
                 closest_3d_binned_size = int((template_size.x + padding_3d) / actual_image_binning + 0.5f);
                 if ( IsOdd(closest_3d_binned_size) )

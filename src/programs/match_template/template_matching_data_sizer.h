@@ -8,6 +8,7 @@
 constexpr bool  MUST_BE_POWER_OF_TWO                   = false; // Required for half-precision xforms
 constexpr int   MUST_BE_FACTOR_OF                      = 0; // May be faster
 constexpr float max_reduction_by_fraction_of_reference = 0.000001f; // FIXME the cpu version is crashing when the image is reduced, but not the GPU
+constexpr int   MAX_3D_PADDING                         = 196;
 
 /**
  * @brief This class is used to optionally resample, pad or cut into chunks the search image.

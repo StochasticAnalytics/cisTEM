@@ -72,6 +72,7 @@ class
 
     template <typename StatsType>
     void RescaleMipAndStatisticalArraysByGlobalMeanAndStdDev(Image*      mip_image,
+                                                             Image*      scaled_mip,
                                                              StatsType*  correlation_pixel_sum,
                                                              StatsType*  correlation_pixel_sum_of_squares,
                                                              long*       histogram,
@@ -878,7 +879,8 @@ bool MatchTemplateApp::DoCalculation( ) {
 
         // Adjust the MIP by the measured mean and stddev of the full search CCC which is an estimate for the moments of the noise distribution of CCCs.
         // FIXME: the histogram will include many non-valid values corresponding to the padding regions.
-        RescaleMipAndStatisticalArraysByGlobalMeanAndStdDev(&max_intensity_projection, correlation_pixel_sum_image.real_values, correlation_pixel_sum_of_squares_image.real_values, histogram_data, total_correlation_positions);
+        Image scaled_mip = max_intensity_projection;
+        RescaleMipAndStatisticalArraysByGlobalMeanAndStdDev(&max_intensity_projection, &scaled_mip, correlation_pixel_sum_image.real_values, correlation_pixel_sum_of_squares_image.real_values, histogram_data, total_correlation_positions);
         // calculate the expected threshold (from peter's paper)
         const float CCG_NOISE_STDDEV = 1.0;
         double      temp_threshold;
@@ -894,14 +896,8 @@ bool MatchTemplateApp::DoCalculation( ) {
         // temp_image.Resize(final_resize_x, final_resize_y, 1, temp_image.ReturnAverageOfRealValuesOnEdges( ));
         temp_image.QuickAndDirtyWriteSlice(mip_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
 
-        //        max_intensity_projection.DividePixelWise(correlation_pixel_sum_of_squares);
-        for ( int i = 0; i < max_intensity_projection.real_memory_allocated; i++ ) {
-            if ( correlation_pixel_sum_of_squares_image.real_values[i] > 0.0f ) {
-                max_intensity_projection.real_values[i] /= correlation_pixel_sum_of_squares_image.real_values[i];
-            }
-        }
         // max_intensity_projection.Resize(final_resize_x, final_resize_y, 1, max_intensity_projection.ReturnAverageOfRealValuesOnEdges( ));
-        max_intensity_projection.QuickAndDirtyWriteSlice(scaled_mip_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
+        scaled_mip.QuickAndDirtyWriteSlice(scaled_mip_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
 
         // correlation_pixel_sum_image.Resize(final_resize_x, final_resize_y, 1, correlation_pixel_sum_image.ReturnAverageOfRealValuesOnEdges( ));
         correlation_pixel_sum_image.QuickAndDirtyWriteSlice(correlation_avg_output_file.ToStdString( ), 1, data_sizer.GetPixelSize( ));
@@ -1144,7 +1140,9 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
             temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_mip_data[pixel_counter];
         }
 
+        scaled_mip.CopyFrom(&temp_image);
         RescaleMipAndStatisticalArraysByGlobalMeanAndStdDev(&temp_image,
+                                                            &scaled_mip,
                                                             aggregated_results[array_location].collated_pixel_sums,
                                                             aggregated_results[array_location].collated_pixel_square_sums,
                                                             aggregated_results[array_location].collated_histogram_data,
@@ -1216,92 +1214,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         pixel_size_image.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
-        // do the scaling...
-
-        temp_image.Allocate(int(image_size_x), int(image_size_y), true);
-        std::cerr << "NUmber serache " << aggregated_results[array_location].total_number_of_angles_searched << std::endl;
-        for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
-            if ( aggregated_results[array_location].collated_pixel_sums[pixel_counter] > -std::numeric_limits<float>::max( ) ) {
-                aggregated_results[array_location].collated_pixel_sums[pixel_counter] /= aggregated_results[array_location].total_number_of_angles_searched;
-                aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] = sqrtf(aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] /
-                                                                                                             aggregated_results[array_location].total_number_of_angles_searched -
-                                                                                                     powf(aggregated_results[array_location].collated_pixel_sums[pixel_counter], 2));
-
-#ifndef CISTEM_TEST_FILTERED_MIP
-                // ifdef, we want to modify the avg and stdDev image first
-                if ( aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] > 0.0f ) {
-                    // Save the variance, not the stdDev
-                    aggregated_results[array_location].collated_mip_data[pixel_counter] = (aggregated_results[array_location].collated_mip_data[pixel_counter] - aggregated_results[array_location].collated_pixel_sums[pixel_counter]) /
-                                                                                          aggregated_results[array_location].collated_pixel_square_sums[pixel_counter];
-                }
-                else {
-                    aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] = 0.0f;
-                    aggregated_results[array_location].collated_mip_data[pixel_counter]          = 0.0f;
-                }
-#endif
-            } // leave OOB values at -FLTMAX
-        }
-
-#ifdef CISTEM_TEST_FILTERED_MIP
-        MyAssertTrue(false, "This block is broken by the new resizing routines.");
-        // We assume the user has set the min pixel radius in pixels to match the expected radius of the particle, which is only true if
-        // a) they are aware of this hack
-        // b) the sample is a single particle (layered sample will have a different radius)
-        float estimated_radius_in_pixels = current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[39].ReturnFloatArgument( );
-
-        // The factor of 4 (two particle diameters) is in no way optimized.
-        float objective_aperture_resolution = input_pixel_size * estimated_radius_in_pixels * 4.0f;
-        float mask_falloff                  = 7.f;
-
-        // std::cerr << "Inside test filtered mip" << std::endl;
-        // std::cerr << "Objective aperture resolution: " << objective_aperture_resolution << std::endl;
-        // std::cerr << "Mask falloff: " << mask_falloff << std::endl;
-        // std::cerr << "Pixel size: " << input_pixel_size << std::endl;
-        // std::cerr << "Estimated radius in pixels: " << estimated_radius_in_pixels << std::endl;
-
-        Image temp_filtered_img;
-        temp_filtered_img.Allocate(temp_image.logical_x_dimension, temp_image.logical_y_dimension, true);
-        temp_filtered_img.ReturnCosineMaskBandpassResolution(input_pixel_size, objective_aperture_resolution, mask_falloff);
-
-        // Direct at the avg image first
-        for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
-            temp_filtered_img.real_values[pixel_counter] = aggregated_results[array_location].collated_pixel_sums[pixel_counter];
-        }
-
-        temp_filtered_img.ForwardFFT( );
-        temp_filtered_img.CosineRingMask(-1.0f, objective_aperture_resolution, mask_falloff);
-        temp_filtered_img.BackwardFFT( );
-
-        // Now filter, subtracting the means
-        // Direct at the avg image first
-        for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
-            aggregated_results[array_location].collated_mip_data[pixel_counter] -= temp_filtered_img.real_values[pixel_counter];
-            aggregated_results[array_location].collated_pixel_sums[pixel_counter] = temp_filtered_img.real_values[pixel_counter];
-        }
-
-        // Direct to the stdDev image
-        for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
-            temp_filtered_img.real_values[pixel_counter] = aggregated_results[array_location].collated_pixel_square_sums[pixel_counter];
-        }
-
-        temp_filtered_img.ForwardFFT( );
-        temp_filtered_img.CosineRingMask(-1.0f, objective_aperture_resolution, mask_falloff);
-        temp_filtered_img.BackwardFFT( );
-
-        // Now filter the stdDev
-        for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
-            aggregated_results[array_location].collated_mip_data[pixel_counter]          = (temp_filtered_img.real_values[pixel_counter] > 0.00001) ? aggregated_results[array_location].collated_mip_data[pixel_counter] / temp_filtered_img.real_values[pixel_counter] : 0.0f;
-            aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] = temp_filtered_img.real_values[pixel_counter];
-        }
-
-#endif
-        for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
-            temp_image.real_values[pixel_counter] = aggregated_results[array_location].collated_mip_data[pixel_counter];
-        }
-
-        temp_image.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[27].ReturnStringArgument( ), 1, false, input_pixel_size);
-        scaled_mip.CopyFrom(&temp_image);
-        temp_image.Deallocate( );
+             scaled_mip.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[27].ReturnStringArgument( ), 1, false, input_pixel_size);
 
         // sums
 
@@ -1712,6 +1625,7 @@ void MatchTemplateApp::ResampleHistogramData(long*        histogram_ptr,
 
 template <typename StatsType>
 void MatchTemplateApp::RescaleMipAndStatisticalArraysByGlobalMeanAndStdDev(Image*      mip_image,
+                                                                           Image*      scaled_mip,
                                                                            StatsType*  correlation_pixel_sum,
                                                                            StatsType*  correlation_pixel_sum_of_squares,
                                                                            long*       histogram,
@@ -1736,6 +1650,91 @@ void MatchTemplateApp::RescaleMipAndStatisticalArraysByGlobalMeanAndStdDev(Image
             mip_image->real_values[pixel_counter]           = (mip_image->real_values[pixel_counter] - global_ccc_mean) / global_ccc_std_dev;
             correlation_pixel_sum_of_squares[pixel_counter] = (correlation_pixel_sum_of_squares[pixel_counter] - (2.0 * global_ccc_mean * correlation_pixel_sum[pixel_counter]) + N_x_mean_sq) / (global_ccc_std_dev * global_ccc_std_dev);
             correlation_pixel_sum[pixel_counter]            = (correlation_pixel_sum[pixel_counter] - N_x_mean) / global_ccc_std_dev;
+
+            // TODO: this could be done in one step, but for now I'm brining it in so that local/gui rescaling happens in the same place and leaving it written as it was there.
+            correlation_pixel_sum[pixel_counter] /= n_angles_in_search;
+            correlation_pixel_sum_of_squares[pixel_counter] = sqrtf(correlation_pixel_sum_of_squares[pixel_counter] /
+                                                                            n_angles_in_search -
+                                                                    powf(correlation_pixel_sum[pixel_counter], 2));
+
+            scaled_mip->real_values[pixel_counter] = (mip_image->real_values[pixel_counter] - correlation_pixel_sum[pixel_counter]) / correlation_pixel_sum_of_squares[pixel_counter];
+            if ( ! std::isfinite(scaled_mip->real_values[pixel_counter]) ) {
+                scaled_mip->real_values[pixel_counter] = -std::numeric_limits<float>::max( );
+            }
         }
     }
+
+// TODO: This would normally have followed the above where currently we are just calculating the rescaled mip.
+#ifdef CISTEM_TEST_FILTERED_MIP
+    MyAssertTrue(false, "This block is broken by the new resizing routines.");
+#endif
+
+    //     {
+    //         {}
+    // #ifndef CISTEM_TEST_FILTERED_MIP
+    //         // ifdef, we want to modify the avg and stdDev image first
+    //         if ( aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] > 0.0f ) {
+    //             // Save the variance, not the stdDev
+    //             aggregated_results[array_location].collated_mip_data[pixel_counter] = (aggregated_results[array_location].collated_mip_data[pixel_counter] - aggregated_results[array_location].collated_pixel_sums[pixel_counter]) /
+    //                                                                                   aggregated_results[array_location].collated_pixel_square_sums[pixel_counter];
+    //         }
+    //         else {
+    //             aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] = 0.0f;
+    //             aggregated_results[array_location].collated_mip_data[pixel_counter]          = 0.0f;
+    //         }
+    // #endif
+    //     } // leave OOB values at -FLTMAX
+    // }
+
+    // #ifdef CISTEM_TEST_FILTERED_MIP
+    // MyAssertTrue(false, "This block is broken by the new resizing routines.");
+    // // We assume the user has set the min pixel radius in pixels to match the expected radius of the particle, which is only true if
+    // // a) they are aware of this hack
+    // // b) the sample is a single particle (layered sample will have a different radius)
+    // float estimated_radius_in_pixels = current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[39].ReturnFloatArgument( );
+
+    // // The factor of 4 (two particle diameters) is in no way optimized.
+    // float objective_aperture_resolution = input_pixel_size * estimated_radius_in_pixels * 4.0f;
+    // float mask_falloff                  = 7.f;
+
+    // // std::cerr << "Inside test filtered mip" << std::endl;
+    // // std::cerr << "Objective aperture resolution: " << objective_aperture_resolution << std::endl;
+    // // std::cerr << "Mask falloff: " << mask_falloff << std::endl;
+    // // std::cerr << "Pixel size: " << input_pixel_size << std::endl;
+    // // std::cerr << "Estimated radius in pixels: " << estimated_radius_in_pixels << std::endl;
+
+    // Image temp_filtered_img;
+    // temp_filtered_img.Allocate(temp_image.logical_x_dimension, temp_image.logical_y_dimension, true);
+    // temp_filtered_img.ReturnCosineMaskBandpassResolution(input_pixel_size, objective_aperture_resolution, mask_falloff);
+
+    // // Direct at the avg image first
+    // for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
+    //     temp_filtered_img.real_values[pixel_counter] = aggregated_results[array_location].collated_pixel_sums[pixel_counter];
+    // }
+
+    // temp_filtered_img.ForwardFFT( );
+    // temp_filtered_img.CosineRingMask(-1.0f, objective_aperture_resolution, mask_falloff);
+    // temp_filtered_img.BackwardFFT( );
+
+    // // Now filter, subtracting the means
+    // // Direct at the avg image first
+    // for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
+    //     aggregated_results[array_location].collated_mip_data[pixel_counter] -= temp_filtered_img.real_values[pixel_counter];
+    //     aggregated_results[array_location].collated_pixel_sums[pixel_counter] = temp_filtered_img.real_values[pixel_counter];
+    // }
+
+    // // Direct to the stdDev image
+    // for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
+    //     temp_filtered_img.real_values[pixel_counter] = aggregated_results[array_location].collated_pixel_square_sums[pixel_counter];
+    // }
+
+    // temp_filtered_img.ForwardFFT( );
+    // temp_filtered_img.CosineRingMask(-1.0f, objective_aperture_resolution, mask_falloff);
+    // temp_filtered_img.BackwardFFT( );
+
+    // // Now filter the stdDev
+    // for ( pixel_counter = 0; pixel_counter < image_real_memory_allocated; pixel_counter++ ) {
+    //     aggregated_results[array_location].collated_mip_data[pixel_counter]          = (temp_filtered_img.real_values[pixel_counter] > 0.00001) ? aggregated_results[array_location].collated_mip_data[pixel_counter] / temp_filtered_img.real_values[pixel_counter] : 0.0f;
+    //     aggregated_results[array_location].collated_pixel_square_sums[pixel_counter] = temp_filtered_img.real_values[pixel_counter];
+    // }
 }
