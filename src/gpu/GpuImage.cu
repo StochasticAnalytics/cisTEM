@@ -4750,7 +4750,7 @@ void GpuImage::Consume(GpuImage* other_image) {
 void GpuImage::ClipIntoFourierSpace(GpuImage* destination_image, float wanted_padding_value, bool zero_central_pixel, bool use_fp16) {
     MyDebugAssertTrue(is_in_memory_gpu || (use_fp16 && is_allocated_16f_buffer), "Memory not allocated");
     MyDebugAssertTrue(destination_image->is_in_memory_gpu || (use_fp16 && destination_image->is_allocated_16f_buffer), "Destination image memory not allocated");
-    MyDebugAssertTrue(destination_image->object_is_centred_in_box && object_is_centred_in_box, "ClipInto assumes both images are centered at the moment.");
+    MyDebugAssertTrue(object_is_centred_in_box, "ClipInto assumes both images are centered at the moment.");
     MyDebugAssertFalse(is_in_real_space && destination_image->is_in_real_space, "ClipIntoFourierSpace assumes both images are in fourier space");
 
     destination_image->object_is_centred_in_box = object_is_centred_in_box;
@@ -5072,8 +5072,11 @@ ExtractSliceShiftAndCtfKernel(const cudaTextureObject_t tex_real,
                               float2       shifts,
                               const int    NX,
                               const int    NY,
+                              const int    NY_3d,
                               const float3 col1,
                               const float3 col2,
+                              const bool   do_binning,
+                              const float  fourier_space_binning_factor,
                               const float  resolution_limit,
                               const bool   apply_resolution_limit,
                               const bool   apply_ctf,
@@ -5132,12 +5135,20 @@ ExtractSliceShiftAndCtfKernel(const cudaTextureObject_t tex_real,
         else
             u = 1.f;
 
+        if ( do_binning ) {
+            // The binning is only supported for down sampling, so the previous block checking for negative frequencies should not be impacted,
+            // as the binning factor must be > 1.0f, This is assuming the current GpuImage NY * fourier_space_binning_factor = volume(NY)
+            tu *= fourier_space_binning_factor;
+            tv *= fourier_space_binning_factor;
+            tw *= fourier_space_binning_factor;
+        }
+
         // Now convert the logical Fourier coordinate to the Swapped Fourier *physical* coordinate
         // The logical origin is physically at X = 1, Y = Z = NY/2
         // Also: include the 1/2 pixel offset to account for different conventions between cuda and cisTEM
         tu += 1.5f;
-        tv += (float(NY / 2) + 0.5f);
-        tw += (float(NY / 2) + 0.5f);
+        tv += (float(NY_3d / 2) + 0.5f);
+        tw += (float(NY_3d / 2) + 0.5f);
 
         // reuse u and v to grab results
         v = u * tex3D<float>(tex_imag, tu, tv, tw);
@@ -5172,7 +5183,7 @@ ExtractSliceShiftAndCtfKernel(const cudaTextureObject_t tex_real,
     }
 }
 
-void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImage* ctf_image, AnglesAndShifts& angles_and_shifts, float pixel_size, float resolution_limit, bool apply_resolution_limit,
+void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImage* ctf_image, AnglesAndShifts& angles_and_shifts, float pixel_size, float real_space_binning_factor, float resolution_limit, bool apply_resolution_limit,
                                        bool swap_quadrants, bool apply_shifts, bool apply_ctf, bool absolute_ctf, bool zero_central_pixel, cudaStream_t stream) {
     MyDebugAssertTrue(dims.z == 1, "Error: attempting to project 3d to 3d");
     MyDebugAssertTrue(volume_to_extract_from->dims.z > 1, "Error: attempting to project 2d to 2d");
@@ -5181,6 +5192,7 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
     // MyDebugAssertTrue(IsCubic( ), "Image volume to project is not cubic"); // This is checked on call to CopyHostToDeviceTextureComplex3d
     MyDebugAssertFalse(volume_to_extract_from->object_is_centred_in_box, "Image volume quadrants not swapped");
     MyDebugAssertTrue(volume_to_extract_from->is_fft_centered_in_box, "Image volume Fourier quadrants not swapped as required for texture locality");
+    MyDebugAssertTrue(real_space_binning_factor >= 1.0f, "Error: real space binning factor must be >= 1.0");
     if ( apply_ctf ) {
         // FIXME:
         // MyDebugAssertTrue(ctf_image->is_allocated_ctf_16f_buffer, "Error: ctf fp16 gpu memory not allocated");
@@ -5217,7 +5229,25 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
     shifts.y = shifts.y * pi_v<float> * 2.0f / float(dims.y) / pixel_size;
 
     // Image::Whiten() defaults to a res limit of 1.0, so we need to match that in the event we opt to not apply a res li mit
-
+    bool  do_binning = false;
+    float fourier_space_binning_factor;
+    std::cerr << "Reporting form here" << std::endl;
+    if ( real_space_binning_factor > 1.0f ) {
+        // I haven't thought yet how (or even if) these ops would be affected, so for now, disallow
+        MyDebugAssertFalse(apply_resolution_limit, "Error: resolution limit not supported with binning");
+        MyDebugAssertFalse(apply_shifts, "Error: shifts not supported with binning");
+        std::cerr << "Doing the binnning" << std::endl;
+        // The spatial frequency to interpolate from the 3d to the 3d will be based on the smaller 2d's dimensions.
+        // Spatial freq = 0.5 in the small image would come from spatial freq 0.25 when binned by 2.
+        // Rather than pass in information about the volumes size, adjust the binning factor to convey this.
+        float vol_ratio = float(volume_to_extract_from->dims.y) / float(dims.y);
+        // If binning = 2 and vol ratio = 2, then the physical coord calculated in the kernel will already be correct
+        // if binning = 2 and vol ratio = 1, then the physical coord calculated in the kernel will be half the size of the volume
+        fourier_space_binning_factor = vol_ratio / real_space_binning_factor;
+        do_binning                   = true;
+        std::cerr << "Fouriuer space binning factor: " << fourier_space_binning_factor << std::endl;
+        std::cerr << "Sizes in y are " << volume_to_extract_from->dims.y << " and " << dims.y << std::endl;
+    }
     precheck;
     ExtractSliceShiftAndCtfKernel<<<gridDims, threadsPerBlock, 0, stream>>>(volume_to_extract_from->tex_real,
                                                                             volume_to_extract_from->tex_imag,
@@ -5226,8 +5256,11 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
                                                                             shifts,
                                                                             dims.w / 2,
                                                                             dims.y,
+                                                                            volume_to_extract_from->dims.y,
                                                                             col1,
                                                                             col2,
+                                                                            do_binning,
+                                                                            fourier_space_binning_factor,
                                                                             resolution_limit_pixel,
                                                                             apply_resolution_limit,
                                                                             apply_ctf,

@@ -269,7 +269,13 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
             if ( use_gpu_prj ) {
 
                 d_current_projection[current_projection_idx].is_in_real_space = false;
-                d_current_projection[current_projection_idx].ExtractSliceShiftAndCtf(&template_gpu, &d_projection_filter, angles, 1.0, 1.0, false, true, true, true, false, true, projection_queue.gpu_projection_stream[current_projection_idx]);
+                constexpr float pixel_size                                    = 1.0f;
+                constexpr float real_space_binning_factor                     = 1.0f;
+                constexpr float resolution_limit                              = 1.0f;
+                d_current_projection[current_projection_idx].ExtractSliceShiftAndCtf(&template_gpu, &d_projection_filter, angles,
+                                                                                     pixel_size, real_space_binning_factor, resolution_limit,
+                                                                                     false, true, true, true, false, true,
+                                                                                     projection_queue.gpu_projection_stream[current_projection_idx]);
                 average_of_reals = 0.f;
                 average_on_edge  = 0.f;
                 projection_queue.RecordGpuProjectionReadyStreamPerThreadWait(current_projection_idx);

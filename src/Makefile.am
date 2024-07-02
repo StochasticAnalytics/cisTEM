@@ -943,7 +943,11 @@ samples_functional_testing_SOURCES += programs/samples/common/helper_functions.c
 samples_functional_testing_SOURCES += programs/samples/0_simple/disk_io_image.cpp  
 samples_functional_testing_SOURCES += programs/samples/6_simulation/simple_3d.cpp
 if WANT_CISTEM_GPU_AM
-        samples_functional_testing_SOURCES += programs/samples/1_cpu_gpu_comparison/resize_comparison.cpp programs/samples/1_cpu_gpu_comparison/projection_comparison.cpp programs/samples/1_cpu_gpu_comparison/masking.cpp programs/samples/1_cpu_gpu_comparison/statistical_ops.cpp 
+        samples_functional_testing_SOURCES += programs/samples/0_simple/resample.cpp
+        samples_functional_testing_SOURCES += programs/samples/1_cpu_gpu_comparison/resize_comparison.cpp 
+        samples_functional_testing_SOURCES += programs/samples/1_cpu_gpu_comparison/projection_comparison.cpp 
+        samples_functional_testing_SOURCES += programs/samples/1_cpu_gpu_comparison/masking.cpp 
+        samples_functional_testing_SOURCES += programs/samples/1_cpu_gpu_comparison/statistical_ops.cpp 
         # samples_functional_testing_SOURCES += programs/samples/3_tensor_ops/gpu_image_tensor_ops.cpp
         samples_functional_testing_SOURCES += programs/samples/4_ffts/simple_cufft.cpp
         samples_functional_testing_SOURCES += programs/samples/5_batched_ops/batched_correlation.cpp

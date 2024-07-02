@@ -398,7 +398,7 @@ class GpuImage {
 
     void ExtractSlice(GpuImage* volume_to_extract_from, AnglesAndShifts& angles_and_shifts, float pixel_size, float resolution_limit = 1.f, bool apply_resolution_limit = true, bool whiten_spectrum = false);
 
-    void ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImage* ctf_image, AnglesAndShifts& angles_and_shifts, float pixel_size, float resolution_limit, bool apply_resolution_limit,
+    void ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImage* ctf_image, AnglesAndShifts& angles_and_shifts, float pixel_size, float real_space_binning_factor, float resolution_limit, bool apply_resolution_limit,
                                  bool swap_quadrants, bool apply_shifts, bool apply_ctf, bool absolute_ctf, bool zero_central_pixel = false, cudaStream_t stream = cudaStreamPerThread);
 
     void Abs( );
