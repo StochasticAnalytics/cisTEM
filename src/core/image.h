@@ -93,6 +93,8 @@ class Image {
         return false;
     }
 
+    // TODO: these two functions are deprecated and instead, the cistem::is_pointer_in_memory_and_registered(ptr)
+    // method from gpu_core_headers.h should be used to directly check if the pointer is in memory and registered.
     template <typename StorageBaseType>
     bool IsMemoryPageLocked(StorageBaseType* ptr) {
         if constexpr ( std::is_same_v<StorageBaseType, float> )

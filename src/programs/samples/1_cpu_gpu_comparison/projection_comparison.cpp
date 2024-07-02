@@ -104,8 +104,6 @@ bool DoCPUvsGPUProjectionTest(const wxString& cistem_ref_dir, const wxString& te
         score  = ref_prj.ReturnCorrelationCoefficientUnnormalized(cpu_prj, mask_radius);
         passed = passed && (score > 0.999f);
 
-        // wxPrintf("Projection match %d: %f\n", iPrj, score);
-
         // Now for a negative control, mess up the angles.
 
         // Make a projection the angles and shifts are *NOT* set to.
@@ -175,7 +173,7 @@ bool DoCPUvsGPUProjectionTest(const wxString& cistem_ref_dir, const wxString& te
         score  = ref_prj.ReturnCorrelationCoefficientUnnormalized(cimg, mask_radius);
         passed = passed && (score > 0.999f);
 
-        // cimg.QuickAndDirtyWriteSlice(prj_output_filename_base + std::to_string(iPrj) + ".mrc", 1, true);
+        cimg.QuickAndDirtyWriteSlice(prj_output_filename_base + std::to_string(iPrj) + ".mrc", 1, true);
     }
 
     all_passed = passed ? all_passed : false;

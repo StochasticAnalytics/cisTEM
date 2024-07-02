@@ -937,7 +937,6 @@ void Image::AddNoise(NoiseType wanted_noise_type, float noise_param_1, float noi
     MyDebugAssertTrue(wanted_noise_type == EXPONENTIAL ? noise_param_1 > 0 : true, "Mean of an Exponential distribution must be positive");
     MyDebugAssertTrue(wanted_noise_type == GAMMA ? (noise_param_1 > 0 && noise_param_2 > 0) : true, "alpha and beta of a Gamma distribution must be positive");
 
-    wxPrintf("Adding noise to image\n");
     RandomNumberGenerator my_rng(pi_v<float>);
 
     switch ( wanted_noise_type ) {
