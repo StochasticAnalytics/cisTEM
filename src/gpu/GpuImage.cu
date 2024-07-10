@@ -5231,7 +5231,6 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
     // Image::Whiten() defaults to a res limit of 1.0, so we need to match that in the event we opt to not apply a res li mit
     bool  do_binning = false;
     float fourier_space_binning_factor;
-    std::cerr << "Reporting form here" << std::endl;
     if ( real_space_binning_factor > 1.0f ) {
         // I haven't thought yet how (or even if) these ops would be affected, so for now, disallow
         MyDebugAssertFalse(apply_resolution_limit, "Error: resolution limit not supported with binning");

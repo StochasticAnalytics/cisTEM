@@ -473,9 +473,14 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
         Image tmp_sq;
 
         tmp_sq.Allocate(image_pre_scaling_size.x, image_pre_scaling_size.y, image_pre_scaling_size.z, true);
+#ifdef USE_ZERO_PADDING_NOT_NOISE
+        bool skip_padding_in_clipinto = false;
+#else
+        bool skip_padding_in_clipinto = true;
         tmp_sq.FillWithNoiseFromNormalDistribution(0.f, 1.0f);
+#endif
 
-        input_image.ClipInto(&tmp_sq, 0.0f, false, 1.0f, 0, 0, 0, true);
+        input_image.ClipInto(&tmp_sq, 0.0f, false, 1.0f, 0, 0, 0, skip_padding_in_clipinto);
 #ifdef DEBUG_IMG_OUTPUT
         if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
             tmp_sq.QuickAndDirtyWriteSlice(DEBUG_IMG_OUTPUT "/tmp_sq.mrc", 1);
@@ -491,9 +496,10 @@ void TemplateMatchingDataSizer::ResizeImage_preSearch(Image& input_image) {
 #endif
 
         input_image.Allocate(image_search_size.x, image_search_size.y, image_search_size.z, true);
-        wxPrintf("Filling with noise from normal\n");
+#ifndef USE_ZERO_PADDING_NOT_NOISE
         input_image.FillWithNoiseFromNormalDistribution(0.f, 1.0f);
-        tmp_sq.ClipInto(&input_image, 0.0f, false, 1.0f, 0, 0, 0, true);
+#endif
+        tmp_sq.ClipInto(&input_image, 0.0f, false, 1.0f, 0, 0, 0, skip_padding_in_clipinto);
 
 #ifdef DEBUG_IMG_OUTPUT
         if ( ReturnThreadNumberOfCurrentThread( ) == 0 )
