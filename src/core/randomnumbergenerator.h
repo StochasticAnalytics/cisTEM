@@ -1,5 +1,5 @@
 /*  \brief  RandomNumberGenerator class */
-constexpr bool debug_with_constant_seed = true;
+constexpr bool debug_with_constant_seed = false;
 
 class RandomNumberGenerator {
 
@@ -16,11 +16,9 @@ class RandomNumberGenerator {
 
     RandomNumberGenerator(float thread_id) : rng(rd( )) {
         if constexpr ( debug_with_constant_seed ) {
-            wxPrintf("\t\t\nDebug: Using constant seed for RandomNumberGenerator\n");
             rng.seed(const_seed_std_routines);
         }
         else {
-            wxPrintf("\t\t\nDebug: Using random seed for RandomNumberGenerator\n");
             rng.seed(random_seed_std_routines);
         }
     }

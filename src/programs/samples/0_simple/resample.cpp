@@ -31,7 +31,7 @@ bool DoFourierCropVsLerpResize(const wxString& cistem_ref_dir, const wxString& t
     bool passed     = true;
     bool all_passed = true;
 
-    const int logical_dim = 384;
+    const int logical_input_size = 384;
 
     AnglesAndShifts prj_angles(10.f, -20.f, 130.f, 0.f, 0.f);
 
@@ -57,7 +57,7 @@ bool DoFourierCropVsLerpResize(const wxString& cistem_ref_dir, const wxString& t
     cpu_volume.ZeroFloatAndNormalize( );
 
     // Make sure the volume has the expected size
-    MyAssertTrue(cpu_volume.logical_x_dimension == logical_dim && cpu_volume.IsCubic( ), "The volume should be 384x384x384");
+    MyAssertTrue(cpu_volume.logical_x_dimension == logical_input_size && cpu_volume.IsCubic( ), "The volume should be 384x384x384");
 
     // Prepare for GPU projection
     constexpr bool also_swap_real_space_quadrants = true;
@@ -66,10 +66,13 @@ bool DoFourierCropVsLerpResize(const wxString& cistem_ref_dir, const wxString& t
     gpu_volume.Init(cpu_volume, false, true);
     gpu_volume.CopyHostToDeviceTextureComplex3d(cpu_volume);
 
-    gpu_prj_full.Allocate(logical_dim, logical_dim, 1, false, false);
-    gpu_prj_cropped.Allocate(logical_dim / 2, logical_dim / 2, 1, false, false);
-    gpu_prj_lerp.Allocate(logical_dim / 2, logical_dim / 2, 1, false, false);
-    gpu_prj_lerp_non_binned_size.Allocate(logical_dim - 128, logical_dim - 128, 1, false, false);
+    // For the positive control, project at the full size, and fourier crop to the binned size
+    gpu_prj_full.Allocate(logical_input_size, logical_input_size, 1, false, false);
+    gpu_prj_cropped.Allocate(logical_input_size / 2, logical_input_size / 2, 1, false, false);
+    // For direct comparison to gpu_prj_cropped, incorporate the lerp into the projection obviating the need for a separate crop.
+    gpu_prj_lerp.Allocate(logical_input_size / 2, logical_input_size / 2, 1, false, false);
+    // For the case where we would first bin but then zero-pad to some other larger size, for example, to have a nice power of 2 image.
+    gpu_prj_lerp_non_binned_size.Allocate(logical_input_size + 128, logical_input_size + 128, 1, false, false);
     // Make sure there are no non-zero vals
     gpu_prj_full.SetToConstant(0.0f);
     gpu_prj_cropped.SetToConstant(0.0f);
@@ -85,17 +88,25 @@ bool DoFourierCropVsLerpResize(const wxString& cistem_ref_dir, const wxString& t
     // Dummy ctf image
     GpuImage dummy_ctf_image;
 
+    constexpr float resolution_limit          = 1.0f;
+    constexpr bool  apply_resolution_limit    = false;
+    constexpr bool  apply_shifts              = false;
+    constexpr bool  swap_real_space_quadrants = true;
+    constexpr bool  apply_ctf                 = false;
+    constexpr bool  absolute_ctf              = false;
+    constexpr bool  zero_central_pixel        = true;
+
     // Project the full size image
-    gpu_prj_full.ExtractSliceShiftAndCtf(&gpu_volume, &dummy_ctf_image, prj_angles, 1.0f, 1.0f, 1.f, false, false, false, false, false, true);
-    gpu_prj_full.SwapRealSpaceQuadrants( );
+    gpu_prj_full.ExtractSliceShiftAndCtf(&gpu_volume, &dummy_ctf_image, prj_angles, 1.0f, 1.0f, resolution_limit, apply_resolution_limit, swap_real_space_quadrants, apply_ctf, absolute_ctf, zero_central_pixel);
+    // gpu_prj_full.SwapRealSpaceQuadrants( );
     // Crop the full size image
     gpu_prj_full.ClipIntoFourierSpace(&gpu_prj_cropped, 0.f, true, false);
 
-    gpu_prj_lerp.ExtractSliceShiftAndCtf(&gpu_volume, &dummy_ctf_image, prj_angles, 1.0f, 2.0f, 1.f, false, false, false, false, false, true);
-    gpu_prj_lerp.SwapRealSpaceQuadrants( );
+    gpu_prj_lerp.ExtractSliceShiftAndCtf(&gpu_volume, &dummy_ctf_image, prj_angles, 1.0f, 2.0f, resolution_limit, apply_resolution_limit, swap_real_space_quadrants, apply_ctf, absolute_ctf, zero_central_pixel);
+    // gpu_prj_lerp.SwapRealSpaceQuadrants( );
 
-    gpu_prj_lerp_non_binned_size.ExtractSliceShiftAndCtf(&gpu_volume, &dummy_ctf_image, prj_angles, 1.0f, 2.0f, 1.f, false, false, false, false, false, true);
-    gpu_prj_lerp_non_binned_size.SwapRealSpaceQuadrants( );
+    gpu_prj_lerp_non_binned_size.ExtractSliceShiftAndCtf(&gpu_volume, &dummy_ctf_image, prj_angles, 1.0f, 2.0f, resolution_limit, apply_resolution_limit, swap_real_space_quadrants, apply_ctf, absolute_ctf, zero_central_pixel);
+    // gpu_prj_lerp_non_binned_size.SwapRealSpaceQuadrants( );
 
     // Save both for inspection (temporarily)
     gpu_prj_full.QuickAndDirtyWriteSlice(prj_output_filename_base + "full.mrc", 1);

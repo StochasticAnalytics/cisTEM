@@ -5197,6 +5197,7 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
         // FIXME:
         // MyDebugAssertTrue(ctf_image->is_allocated_ctf_16f_buffer, "Error: ctf fp16 gpu memory not allocated");
         MyDebugAssertTrue(ctf_image->real_values_fp16 != nullptr, "Error: ctf fp16 gpu memory not allocated");
+        MyDebugAssertTrue(HasSameDimensionsAs(ctf_image), "Error: ctf image must have the same dimensions as the image being projected");
     }
 
     // Get launch params for a complex non-redundant half image
@@ -5233,7 +5234,7 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
     float fourier_space_binning_factor;
     if ( real_space_binning_factor > 1.0f ) {
         // I haven't thought yet how (or even if) these ops would be affected, so for now, disallow
-        MyDebugAssertFalse(apply_resolution_limit, "Error: resolution limit not supported with binning");
+        // MyDebugAssertFalse(apply_resolution_limit, "Error: resolution limit not supported with binning");
         MyDebugAssertFalse(apply_shifts, "Error: shifts not supported with binning");
         std::cerr << "Doing the binnning" << std::endl;
         // The spatial frequency to interpolate from the 3d to the 3d will be based on the smaller 2d's dimensions.
@@ -5244,9 +5245,12 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
         // if binning = 2 and vol ratio = 1, then the physical coord calculated in the kernel will be half the size of the volume
         fourier_space_binning_factor = vol_ratio / real_space_binning_factor;
         do_binning                   = true;
-        std::cerr << "Fouriuer space binning factor: " << fourier_space_binning_factor << std::endl;
+        std::cerr << "Fourier space binning factor: " << fourier_space_binning_factor << std::endl;
         std::cerr << "Sizes in y are " << volume_to_extract_from->dims.y << " and " << dims.y << std::endl;
+        // FIXME: I can see the case where we have
+        // MyDebugAssertTrue(dims.x <= volume_to_extract_from->dims.x, "Error: projection may be arbitrarily size as long as it is smaller than the 3d");
     }
+
     precheck;
     ExtractSliceShiftAndCtfKernel<<<gridDims, threadsPerBlock, 0, stream>>>(volume_to_extract_from->tex_real,
                                                                             volume_to_extract_from->tex_imag,
