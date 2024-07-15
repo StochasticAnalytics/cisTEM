@@ -431,34 +431,40 @@ void TemplateMatchingDataSizer::SetHighResolutionLimit(const float wanted_high_r
         resampling_is_needed = true;
 };
 
-void TemplateMatchingDataSizer::ResizeTemplate_preSearch(Image& template_image) {
+void TemplateMatchingDataSizer::ResizeTemplate_preSearch(Image& template_image, const bool use_lerp_not_fourier_resampling) {
 
-#ifdef DEBUG_IMG_OUTPUT
-    if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
-        // Print out the size of each step
-        wxPrintf("template_size = %i %i %i\n", template_size.x, template_size.y, template_size.z);
-        wxPrintf("template_pre_scaling_size = %i %i %i\n", template_pre_scaling_size.x, template_pre_scaling_size.y, template_pre_scaling_size.z);
-        wxPrintf("template_cropped_size = %i %i %i\n", template_cropped_size.x, template_cropped_size.y, template_cropped_size.z);
-        wxPrintf("template_search_size = %i %i %i\n", template_search_size.x, template_search_size.y, template_search_size.z);
-        template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image.mrc", 1, template_size.z / 2);
+    if ( use_lerp_not_fourier_resampling ) {
+        // We only need to set the 3d to be the padded power of two size and have the resampling be handled during the projection step.
+        template_image.Resize(template_search_size.x, template_search_size.y, template_search_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
     }
-#endif
-    template_image.Resize(template_pre_scaling_size.x, template_pre_scaling_size.y, template_pre_scaling_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
+    else {
 #ifdef DEBUG_IMG_OUTPUT
-    template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized_pre_scale.mrc", 1, template_pre_scaling_size.z / 2);
+        if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
+            // Print out the size of each step
+            wxPrintf("template_size = %i %i %i\n", template_size.x, template_size.y, template_size.z);
+            wxPrintf("template_pre_scaling_size = %i %i %i\n", template_pre_scaling_size.x, template_pre_scaling_size.y, template_pre_scaling_size.z);
+            wxPrintf("template_cropped_size = %i %i %i\n", template_cropped_size.x, template_cropped_size.y, template_cropped_size.z);
+            wxPrintf("template_search_size = %i %i %i\n", template_search_size.x, template_search_size.y, template_search_size.z);
+            template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image.mrc", 1, template_size.z / 2);
+        }
 #endif
-    template_image.ForwardFFT( );
-    template_image.Resize(template_cropped_size.x, template_cropped_size.y, template_cropped_size.z);
-    template_image.BackwardFFT( );
+        template_image.Resize(template_pre_scaling_size.x, template_pre_scaling_size.y, template_pre_scaling_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
 #ifdef DEBUG_IMG_OUTPUT
-    template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized_cropped.mrc", 1, template_cropped_size.z / 2);
+        template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized_pre_scale.mrc", 1, template_pre_scaling_size.z / 2);
 #endif
-    template_image.Resize(template_search_size.x, template_search_size.y, template_search_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
+        template_image.ForwardFFT( );
+        template_image.Resize(template_cropped_size.x, template_cropped_size.y, template_cropped_size.z);
+        template_image.BackwardFFT( );
 #ifdef DEBUG_IMG_OUTPUT
-    if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
-        template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized.mrc", 1, template_search_size.z / 2);
+        template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized_cropped.mrc", 1, template_cropped_size.z / 2);
+#endif
+        template_image.Resize(template_search_size.x, template_search_size.y, template_search_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
+#ifdef DEBUG_IMG_OUTPUT
+        if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
+            template_image.QuickAndDirtyWriteSlices(DEBUG_IMG_OUTPUT "/template_image_resized.mrc", 1, template_search_size.z / 2);
+        }
+#endif
     }
-#endif
 };
 
 void TemplateMatchingDataSizer::ResizeTemplate_postSearch(Image& template_image) {

@@ -120,6 +120,7 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
     total_number_of_cccs_calculated = 0;
 
     bool this_is_the_first_run_on_inner_loop = my_dist.empty( );
+    // FIXME: Move this to a new method in matche_template.cpp and reference it from a shared pointer.
     if ( use_fast_fft && this_is_the_first_run_on_inner_loop ) {
         std::cerr << "\n\n\nUsing FastFFT\n\n\n\n";
         // FastFFT pads from the upper left corner, so we need to shift the image so the origins coinicide
@@ -234,6 +235,16 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
     cudaErr(cudaStreamSynchronize(cudaStreamPerThread));
     projection_queue.RecordProjectionReadyBlockingHost(current_projection_idx, cudaStreamPerThread);
 
+    // # FIXME: this is here to see if masking out the ghosting from lerp
+    // Image debug_mask;
+    // debug_mask.Allocate(d_input_image.dims.x, d_input_image.dims.y, 1);
+    // debug_mask.SetToConstant(1.f);
+    // debug_mask.CosineMask(debug_mask.logical_x_dimension / 4, 14);
+    // if ( ReturnThreadNumberOfCurrentThread( ) == 0 ) {
+    //     debug_mask.QuickAndDirtyWriteSlice("/tmp/debug_mask.mrc", 1);
+    //     exit(0);
+    // }
+
     for ( current_search_position = first_search_position; current_search_position <= last_search_position; current_search_position++ ) {
 
         if ( current_search_position % 10 == 0 ) {
@@ -242,7 +253,10 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
 
         for ( float current_psi = psi_start; current_psi <= psi_max; current_psi += psi_step ) {
 
-            angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, 0.0, 0.0);
+            constexpr float shifts_in_x_y                               = 0.0f;
+            constexpr bool  apply_shifts                                = false;
+            constexpr bool  swap_real_space_quadrants_during_projection = true;
+            angles.Init(global_euler_search.list_of_search_parameters[current_search_position][0], global_euler_search.list_of_search_parameters[current_search_position][1], current_psi, shifts_in_x_y, shifts_in_x_y);
             //			current_projection[0].SetToConstant(0.0f); // This also sets the FFT padding to zero
 
             current_projection_idx = projection_queue.GetAvailableProjectionIDX( );
@@ -250,16 +264,29 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, float c_pixel,
 
                 d_current_projection[current_projection_idx].is_in_real_space = false;
                 constexpr float pixel_size                                    = 1.0f;
-                constexpr float real_space_binning_factor                     = 1.0f;
                 constexpr float resolution_limit                              = 1.0f;
-                d_current_projection[current_projection_idx].ExtractSliceShiftAndCtf(template_gpu_shared.get( ), &d_projection_filter, angles,
-                                                                                     pixel_size, real_space_binning_factor, resolution_limit,
-                                                                                     false, true, true, true, false, true,
+                float           real_space_binning_factor                     = 1.0f;
+
+                if ( use_lerp_for_resizing ) {
+                    real_space_binning_factor = binning_factor;
+                }
+                d_current_projection[current_projection_idx].ExtractSliceShiftAndCtf(template_gpu_shared.get( ),
+                                                                                     &d_projection_filter, angles,
+                                                                                     pixel_size,
+                                                                                     real_space_binning_factor,
+                                                                                     resolution_limit,
+                                                                                     false,
+                                                                                     swap_real_space_quadrants_during_projection,
+                                                                                     apply_shifts,
+                                                                                     true,
+                                                                                     false,
+                                                                                     true,
                                                                                      projection_queue.gpu_projection_stream[current_projection_idx]);
                 average_of_reals = 0.f;
                 average_on_edge  = 0.f;
                 projection_queue.RecordGpuProjectionReadyStreamPerThreadWait(current_projection_idx);
                 // Default GpuImage methods are in cudaStreamPerThread
+
                 d_current_projection[current_projection_idx].BackwardFFT( );
             }
             else {

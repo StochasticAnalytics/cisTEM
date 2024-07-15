@@ -33,6 +33,9 @@ class TemplateMatchingCore {
     std::shared_ptr<GpuImage> template_gpu_shared;
     Image                     input_image; // These will be modified on the host from withing Template Matching Core so Allocate locally
 
+    bool  use_lerp_for_resizing{ };
+    float binning_factor = 1.f;
+
     std::vector<Image> current_projection;
 
     // These are assumed to be empty containers at the outset, so xfer host-->device is skipped

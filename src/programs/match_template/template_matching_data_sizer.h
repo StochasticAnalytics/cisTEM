@@ -89,7 +89,7 @@ class TemplateMatchingDataSizer {
 
     void PreProcessResizedInputImage(Image& input_image, Curve& whitening_filter) { PreProcessInputImage(input_image, whitening_filter, true, false); }
 
-    void ResizeTemplate_preSearch(Image& template_image);
+    void ResizeTemplate_preSearch(Image& template_image, const bool use_lerp_not_fourier_resampling = false);
     void ResizeTemplate_postSearch(Image& template_image);
 
     // All statistical images (mip, psi etc.) are originally allocated based on the pre-processed input_image size,

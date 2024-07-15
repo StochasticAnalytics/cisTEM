@@ -16,6 +16,8 @@
 
 #include "template_matching_data_sizer.h"
 
+#define USE_LERP_NOT_FOURIER_RESIZING
+
 class AggregatedTemplateResult {
 
   public:
@@ -390,10 +392,18 @@ bool MatchTemplateApp::DoCalculation( ) {
     // Handle preprocessing before any potential resizing such that we have the best shot at avoiding edge artifacts etc.
     Curve whitening_filter;
 
+#ifdef USE_LERP_NOT_FOURIER_RESIZING
+    const bool use_lerp_not_fourier_resampling = true;
+#else
+    const bool use_lerp_not_fourier_resampling = false;
+#endif
     data_sizer.PreProcessInputImage(input_image, whitening_filter);
     data_sizer.SetImageAndTemplateSizing(high_resolution_limit_search, use_fast_fft);
-    data_sizer.ResizeTemplate_preSearch(input_reconstruction);
+    data_sizer.ResizeTemplate_preSearch(input_reconstruction, use_lerp_not_fourier_resampling);
     data_sizer.ResizeImage_preSearch(input_image);
+
+    float wanted_binning_factor = data_sizer.GetSearchPixelSize( ) / data_sizer.GetPixelSize( );
+    std::cerr << "Binning factor is " << wanted_binning_factor << std::endl;
 
     if ( data_sizer.IsRotatedBy90( ) )
         defocus_angle += 90.0f;
@@ -623,6 +633,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         if ( use_gpu ) {
 #ifdef ENABLEGPU
 
+            // FIXME: move this (and the above CPU steps) into a method to prepare the 3d reference.
             // Swapping the fourier space quadrants is a one way operation, so we need a copy in case the user has a loop over pixel size
             // TODO: we could check this and avoid the copy
             Image tmp_vol = template_reconstruction;
@@ -666,6 +677,14 @@ bool MatchTemplateApp::DoCalculation( ) {
                                        histogram_min_scaled, histogram_step_scaled, histogram_number_of_points,
                                        max_padding, t_first_search_position, t_last_search_position,
                                        my_progress, total_correlation_positions_per_thread, is_running_locally, use_fast_fft);
+
+#ifdef USE_LERP_NOT_FOURIER_RESIZING
+                        std::cerr << "\n\nUsing LERP\n\n";
+                        GPU[tIDX].use_lerp_for_resizing = true;
+                        GPU[tIDX].binning_factor        = wanted_binning_factor;
+#else
+                        std::cerr << "\n\nNOT Using LERP\n\n";
+#endif
                     }
 
                     wxPrintf("%d\n", tIDX);
@@ -1286,7 +1305,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
 #ifdef MKL
         vdErfcInv(1, &erf_input, &temp_threshold);
 #else
-        temp_threshold = cisTEM_erfcinv(erf_input);
+        temp_threshold       = cisTEM_erfcinv(erf_input);
 #endif
         expected_threshold = sqrtf(2.0f) * (float)temp_threshold * CCG_NOISE_STDDEV;
 

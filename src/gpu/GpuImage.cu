@@ -5226,6 +5226,8 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
         shifts.x += float(physical_address_of_box_center.x);
         shifts.y += float(physical_address_of_box_center.y);
     }
+
+    // FIXME: why am I using pixel size here? the quadrant swap and angles object shifts should be in pixels
     shifts.x = shifts.x * pi_v<float> * 2.0f / float(dims.x) / pixel_size;
     shifts.y = shifts.y * pi_v<float> * 2.0f / float(dims.y) / pixel_size;
 
@@ -5236,7 +5238,6 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
         // I haven't thought yet how (or even if) these ops would be affected, so for now, disallow
         // MyDebugAssertFalse(apply_resolution_limit, "Error: resolution limit not supported with binning");
         MyDebugAssertFalse(apply_shifts, "Error: shifts not supported with binning");
-        std::cerr << "Doing the binnning" << std::endl;
         // The spatial frequency to interpolate from the 3d to the 3d will be based on the smaller 2d's dimensions.
         // Spatial freq = 0.5 in the small image would come from spatial freq 0.25 when binned by 2.
         // Rather than pass in information about the volumes size, adjust the binning factor to convey this.
@@ -5245,8 +5246,6 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
         // if binning = 2 and vol ratio = 1, then the physical coord calculated in the kernel will be half the size of the volume
         fourier_space_binning_factor = vol_ratio / real_space_binning_factor;
         do_binning                   = true;
-        std::cerr << "Fourier space binning factor: " << fourier_space_binning_factor << std::endl;
-        std::cerr << "Sizes in y are " << volume_to_extract_from->dims.y << " and " << dims.y << std::endl;
         // FIXME: I can see the case where we have
         // MyDebugAssertTrue(dims.x <= volume_to_extract_from->dims.x, "Error: projection may be arbitrarily size as long as it is smaller than the 3d");
     }
