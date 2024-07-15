@@ -623,6 +623,24 @@ bool MatchTemplateApp::DoCalculation( ) {
         if ( use_gpu ) {
 #ifdef ENABLEGPU
 
+            // Swapping the fourier space quadrants is a one way operation, so we need a copy in case the user has a loop over pixel size
+            // TODO: we could check this and avoid the copy
+            Image tmp_vol = template_reconstruction;
+            if ( ! tmp_vol.is_fft_centered_in_box ) {
+                // FIXME: The extra RealSpace swap could be avoided
+                tmp_vol.SwapRealSpaceQuadrants( );
+                tmp_vol.BackwardFFT( );
+                tmp_vol.SwapFourierSpaceQuadrants(true);
+            }
+            // We only want to have one copy of the 3d template in texture memory that each thread can then reference.
+            // First allocate a shared pointer and construct the GpuImage based on the CPU template
+            // TODO: Initially, i had this set to use
+            // GpuImage::InitializeBasedOnCpuImage(tmp_vol, false, true); where the memory is instructed not to be pinned.
+            // This should be fine now, but .
+            std::cerr << "tmp_vol swap is " << tmp_vol.is_fft_centered_in_box << " and " << tmp_vol.object_is_centred_in_box << std::endl;
+            std::shared_ptr<GpuImage> template_reconstruction_gpu = std::make_shared<GpuImage>(tmp_vol);
+            template_reconstruction_gpu->CopyHostToDeviceTextureComplex3d(tmp_vol);
+            std::cerr << "gpu swap is " << template_reconstruction_gpu->is_fft_centered_in_box << " and " << template_reconstruction_gpu->object_is_centred_in_box << std::endl;
 #pragma omp parallel num_threads(max_threads)
             {
                 int tIDX = ReturnThreadNumberOfCurrentThread( );
@@ -640,7 +658,7 @@ bool MatchTemplateApp::DoCalculation( ) {
 #pragma omp critical
 
                     {
-                        GPU[tIDX].Init(this, template_reconstruction, input_image, current_projection,
+                        GPU[tIDX].Init(this, template_reconstruction_gpu, input_image, current_projection,
                                        pixel_size_search_range, pixel_size_step, data_sizer.GetSearchPixelSize( ),
                                        defocus_search_range, defocus_step, defocus1, defocus2,
                                        psi_max, psi_start, psi_step,
@@ -658,7 +676,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                     first_gpu_loop = false;
                 }
                 else {
-                    GPU[tIDX].template_reconstruction.CopyFrom(&template_reconstruction);
+                    GPU[tIDX].template_gpu_shared = template_reconstruction_gpu;
                 }
             } // end of omp block
 #endif
@@ -1214,7 +1232,7 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
         pixel_size_image.CopyFrom(&temp_image);
         temp_image.Deallocate( );
 
-             scaled_mip.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[27].ReturnStringArgument( ), 1, false, input_pixel_size);
+        scaled_mip.QuickAndDirtyWriteSlice(current_job_package.jobs[(aggregated_results[array_location].image_number - 1) * number_of_expected_results].arguments[27].ReturnStringArgument( ), 1, false, input_pixel_size);
 
         // sums
 
