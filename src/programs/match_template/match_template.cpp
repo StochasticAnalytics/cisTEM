@@ -381,8 +381,6 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     int i;
 
-    int remove_npix_from_edge = 0;
-
     EulerSearch     global_euler_search;
     AnglesAndShifts angles;
 
@@ -391,10 +389,6 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     input_search_image_file.OpenFile(input_search_images_filename.ToStdString( ), false);
     input_reconstruction_file.OpenFile(input_reconstruction_filename.ToStdString( ), false);
-
-    //
-    remove_npix_from_edge = myroundint(particle_radius_angstroms / input_pixel_size);
-    //    wxPrintf("Removing %d pixels around the edge.\n", remove_npix_from_edge);
 
     Image input_image;
     Image padded_reference;
@@ -445,7 +439,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     data_sizer.ResizeTemplate_preSearch(input_reconstruction, use_lerp_not_fourier_resampling);
     data_sizer.ResizeImage_preSearch(input_image);
     profile_timing.lap("Resize_preSearch");
-    float wanted_binning_factor = data_sizer.GetSearchPixelSize( ) / data_sizer.GetPixelSize( );
+    float wanted_binning_factor = data_sizer.GetFullBinningFactor( );
 
     if ( data_sizer.IsRotatedBy90( ) )
         defocus_angle += 90.0f;
@@ -491,9 +485,9 @@ bool MatchTemplateApp::DoCalculation( ) {
 
     // assume cube
 
-    current_projection.Allocate(input_reconstruction.logical_x_dimension, input_reconstruction.logical_x_dimension, false);
-    projection_filter.Allocate(input_reconstruction.logical_x_dimension, input_reconstruction.logical_x_dimension, false);
-    template_reconstruction.Allocate(input_reconstruction.logical_x_dimension, input_reconstruction.logical_y_dimension, input_reconstruction.logical_z_dimension, true);
+    current_projection.Allocate(data_sizer.GetTemplateSizeX( ), data_sizer.GetTemplateSizeX( ), false);
+    projection_filter.Allocate(data_sizer.GetTemplateSizeX( ), data_sizer.GetTemplateSizeX( ), false);
+    template_reconstruction.Allocate(data_sizer.GetTemplateSizeX( ), data_sizer.GetTemplateSizeX( ), data_sizer.GetTemplateSizeX( ), true);
     if ( padding != 1.0f )
         padded_projection.Allocate(input_reconstruction.logical_x_dimension * padding, input_reconstruction.logical_x_dimension * padding, false);
 
@@ -525,7 +519,7 @@ bool MatchTemplateApp::DoCalculation( ) {
     //psi_step = 5;
 
     // search grid
-    // TODO: when checking the impact of limiting the resolution, it may be worthwile to NOT limit the number of search positions
+    // Note: resolution limit is only used in euler search in particle extraction and whitening. It does not affect template matching.
     global_euler_search.InitGrid(my_symmetry, angular_step, 0.0f, 0.0f, psi_max, psi_step, psi_start, data_sizer.GetSearchPixelSize( ) / high_resolution_limit_search, parameter_map, best_parameters_to_keep);
 
     // TODO 2x check me - w/o this O symm at least is broken
