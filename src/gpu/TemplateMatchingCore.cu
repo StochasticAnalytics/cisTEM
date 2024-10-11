@@ -108,7 +108,9 @@ void TemplateMatchingCore::Init(MyApp*                    parent_pointer,
     // Transfer the input image_memory_should_not_be_deallocated
 };
 
-void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, int threadIDX, long& current_correlation_position) {
+void TemplateMatchingCore::RunInnerLoop(Image& projection_filter,
+                                        int    threadIDX,
+                                        long&  current_correlation_position) {
 
     total_number_of_cccs_calculated   = 0;
     total_number_of_histogram_samples = 0;
@@ -195,7 +197,7 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, int threadIDX,
     if ( use_gpu_prj ) {
         // d_projection_filter.CopyHostToDevice(projection_filter);
         // d_projection_filter.CopyFP32toFP16buffer(false);
-        d_projection_filter.CopyHostToDeviceTextureRealValued<2>(projection_filter);
+        d_projection_filter.CopyHostToDeviceTextureComplex<2>(projection_filter);
     }
 
     int             current_projection_idx = 0;
@@ -233,19 +235,19 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter, int threadIDX,
                 }
 
                 // template_gpu_shared.get( )
-                d_current_projection[current_projection_idx].ExtractSliceShiftAndCtf<true>(template_gpu_shared.get( ),
-                                                                                           &d_projection_filter,
-                                                                                           angles,
-                                                                                           pixel_size,
-                                                                                           real_space_binning_factor,
-                                                                                           resolution_limit,
-                                                                                           false,
-                                                                                           swap_real_space_quadrants_during_projection,
-                                                                                           apply_shifts,
-                                                                                           true,
-                                                                                           false,
-                                                                                           true,
-                                                                                           projection_queue.gpu_projection_stream[current_projection_idx]);
+                constexpr bool apply_ctf       = true;
+                constexpr bool use_ctf_texture = true;
+                d_current_projection[current_projection_idx].ExtractSliceShiftAndCtf<apply_ctf, use_ctf_texture>(template_gpu_shared.get( ),
+                                                                                                                 &d_projection_filter,
+                                                                                                                 angles,
+                                                                                                                 pixel_size,
+                                                                                                                 real_space_binning_factor,
+                                                                                                                 resolution_limit,
+                                                                                                                 false,
+                                                                                                                 swap_real_space_quadrants_during_projection,
+                                                                                                                 apply_shifts,
+                                                                                                                 true,
+                                                                                                                 projection_queue.gpu_projection_stream[current_projection_idx]);
 
                 average_of_reals = 0.f;
                 average_on_edge  = 0.f;

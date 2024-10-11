@@ -738,8 +738,6 @@ bool MatchTemplateApp::DoCalculation( ) {
             //            input_ctf.SetDefocus((defocus1 + 200) / data_sizer.GetSearchPixelSize(), (defocus2 + 200) / data_sizer.GetSearchPixelSize(), deg_2_rad(defocus_angle));
             projection_filter.CalculateCTFImage(input_ctf);
             projection_filter.ApplyCurveFilter(data_sizer.whitening_filter_ptr.get( ));
-            if ( use_gpu_prj )
-                projection_filter.SwapFourierSpaceQuadrants(false, true);
             profile_timing.lap("Ctf and whitening filter");
 
             //            projection_filter.QuickAndDirtyWriteSlices("/tmp/projection_filter.mrc",1,projection_filter.logical_z_dimension,true,1.5);
@@ -751,8 +749,13 @@ bool MatchTemplateApp::DoCalculation( ) {
                 {
                     int tIDX = ReturnThreadNumberOfCurrentThread( );
                     gpuDev.SetGpu( );
-
-                    profile_timing.start("RunInnerLoop");
+#pragma omp critical
+                    {
+                        // We only want one thread to swap the fourier quadrants.
+                        if ( use_gpu_prj && tIDX == 0 )
+                            projection_filter.SwapFourierSpaceQuadrants(false, true);
+                        profile_timing.start("RunInnerLoop");
+                    } // omp critical on swap fourier quadrants
                     GPU[tIDX].RunInnerLoop(projection_filter, tIDX, current_correlation_position);
                     profile_timing.lap("RunInnerLoop");
 
@@ -1150,7 +1153,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         delete[] GPU;
     }
 
-    //  gpuDev.ResetGpu();
+//  gpuDev.ResetGpu();
 #endif
 
     if ( is_running_locally == true ) {
