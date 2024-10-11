@@ -5269,7 +5269,6 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
     shifts.y = shifts.y * -1.f * pi_v<float> * 2.0f / float(dims.y);
 
     if constexpr ( use_ctf_texture ) {
-        std::cerr << "Using texture for CTF" << std::endl;
         precheck;
         ExtractSliceShiftAndCtfKernel<<<gridDims, threadsPerBlock, 0, stream>>>(volume_to_extract_from->tex_real,
                                                                                 volume_to_extract_from->tex_imag,

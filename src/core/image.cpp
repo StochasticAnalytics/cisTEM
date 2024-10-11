@@ -9010,9 +9010,9 @@ bool Image::HasSameDimensionsAs(Image* other_image) {
 
 void Image::SwapFourierSpaceQuadrants(bool also_swap_real_space_quadrants, bool is_a_ctf_image) {
     MyDebugAssertTrue(is_in_memory, "Image memory not allocated");
-
     MyDebugAssertTrue((is_in_real_space && ! is_a_ctf_image) || (! is_in_real_space && is_a_ctf_image), "Image is not in real space or is a CTF image");
-    MyDebugAssertTrue((also_swap_real_space_quadrants && ! is_a_ctf_image) || (! also_swap_real_space_quadrants && is_a_ctf_image), "Cannot swap real space quadrants for CTF images");
+    if ( is_a_ctf_image )
+        MyDebugAssertFalse(also_swap_real_space_quadrants, "Cannot swap real space quadrants for CTF images");
 
     if ( is_a_ctf_image ) {
         BackwardFFT( );

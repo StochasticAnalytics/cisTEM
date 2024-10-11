@@ -738,6 +738,8 @@ bool MatchTemplateApp::DoCalculation( ) {
             //            input_ctf.SetDefocus((defocus1 + 200) / data_sizer.GetSearchPixelSize(), (defocus2 + 200) / data_sizer.GetSearchPixelSize(), deg_2_rad(defocus_angle));
             projection_filter.CalculateCTFImage(input_ctf);
             projection_filter.ApplyCurveFilter(data_sizer.whitening_filter_ptr.get( ));
+            if ( use_gpu_prj )
+                projection_filter.SwapFourierSpaceQuadrants(false, true);
             profile_timing.lap("Ctf and whitening filter");
 
             //            projection_filter.QuickAndDirtyWriteSlices("/tmp/projection_filter.mrc",1,projection_filter.logical_z_dimension,true,1.5);
@@ -749,6 +751,7 @@ bool MatchTemplateApp::DoCalculation( ) {
                 {
                     int tIDX = ReturnThreadNumberOfCurrentThread( );
                     gpuDev.SetGpu( );
+
                     profile_timing.start("RunInnerLoop");
                     GPU[tIDX].RunInnerLoop(projection_filter, tIDX, current_correlation_position);
                     profile_timing.lap("RunInnerLoop");

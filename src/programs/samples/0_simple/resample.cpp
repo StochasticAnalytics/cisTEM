@@ -83,6 +83,7 @@ bool DoCTFImageVsTexture(const wxString& cistem_ref_dir, const wxString& temp_di
     // Now we'll grab a projection and apply the CTF to it in the same kernel.
     AnglesAndShifts prj_angles(10.f, -20.f, 130.f, 0.f, 0.f);
     GpuImage        gpu_prj(ctf_image);
+    GpuImage        gpu_prj_tex(ctf_image);
     GpuImage        d_projection_filter(ctf_image);
     d_projection_filter.CopyHostToDevice(ctf_image);
     d_projection_filter.CopyFP32toFP16buffer(false);
@@ -100,35 +101,32 @@ bool DoCTFImageVsTexture(const wxString& cistem_ref_dir, const wxString& temp_di
                                     absolute_ctf,
                                     zero_central_pixel);
 
-    gpu_prj.QuickAndDirtyWriteSlice("ctf_image.mrc", 1);
-
-    // ctf_image.is_in_real_space = true;
-
-    // ctf_image.QuickAndDirtyWriteSlice("ctf_image_ref.mrc", 1);
-    // ctf_image.ForwardFFT( );
-    // ctf_image.PhaseShift(0.f, float(ctf_image.logical_y_dimension / 2), 0.f);
-    // ctf_image.BackwardFFT( );
-    // ctf_image.is_in_real_space = true;
-    // ctf_image.QuickAndDirtyWriteSlice("ctf_image_ref2.mrc", 1);
-    // Now, copy the projection filter into the texture cache so that we can read from that
     d_projection_filter.CopyHostToDeviceTextureRealValued<2>(swapped_ctf_image);
 
     constexpr bool use_ctf_texture = true;
-    gpu_prj.ExtractSliceShiftAndCtf<use_ctf_texture>(&gpu_volume,
-                                                     &d_projection_filter,
-                                                     prj_angles,
-                                                     pixel_size,
-                                                     real_space_binning_factor,
-                                                     resolution_limit,
-                                                     apply_resolution_limit,
-                                                     swap_real_space_quadrants,
-                                                     apply_shifts,
-                                                     apply_ctf,
-                                                     absolute_ctf,
-                                                     zero_central_pixel);
+    gpu_prj_tex.ExtractSliceShiftAndCtf<use_ctf_texture>(&gpu_volume,
+                                                         &d_projection_filter,
+                                                         prj_angles,
+                                                         pixel_size,
+                                                         real_space_binning_factor,
+                                                         resolution_limit,
+                                                         apply_resolution_limit,
+                                                         swap_real_space_quadrants,
+                                                         apply_shifts,
+                                                         apply_ctf,
+                                                         absolute_ctf,
+                                                         zero_central_pixel);
 
-    gpu_prj.QuickAndDirtyWriteSlice("ctf_texture.mrc", 1);
-    exit(0);
+    gpu_prj.BackwardFFT( );
+    gpu_prj_tex.BackwardFFT( );
+
+    gpu_prj.NormalizeRealSpaceStdDeviation(1.f, 0.f, 0.f);
+    gpu_prj_tex.NormalizeRealSpaceStdDeviation(1.f, 0.f, 0.f);
+
+    gpu_prj_tex.SubtractImage(gpu_prj);
+    float SS = gpu_prj_tex.ReturnSumOfSquares( );
+
+    passed = FloatsAreAlmostTheSame(SS, 0.f);
 
     SamplesTestResult(passed);
 
