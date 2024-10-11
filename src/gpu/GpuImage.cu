@@ -5207,9 +5207,13 @@ void GpuImage::ExtractSliceShiftAndCtf(GpuImage* volume_to_extract_from, GpuImag
     MyDebugAssertTrue(real_space_binning_factor >= 1.0f, "Error: real space binning factor must be >= 1.0");
     if ( apply_ctf ) {
         // FIXME:
-        // MyDebugAssertTrue(ctf_image->is_allocated_ctf_16f_buffer, "Error: ctf fp16 gpu memory not allocated");
-        MyDebugAssertTrue(ctf_image->real_values_fp16 != nullptr, "Error: ctf fp16 gpu memory not allocated");
-        MyDebugAssertTrue(HasSameDimensionsAs(ctf_image), "Error: ctf image must have the same dimensions as the image being projected");
+        if constexpr ( use_ctf_texture ) {
+            MyDebugAssertTrue(ctf_image->is_allocated_texture_cache, "Error: ctf texture cache not allocated");
+        }
+        else {
+            MyDebugAssertTrue(ctf_image->real_values_fp16 != nullptr, "Error: ctf fp16 gpu memory not allocated");
+            MyDebugAssertTrue(HasSameDimensionsAs(ctf_image), "Error: ctf image must have the same dimensions as the image being projected");
+        }
     }
 
     // Get launch params for a complex non-redundant half image
