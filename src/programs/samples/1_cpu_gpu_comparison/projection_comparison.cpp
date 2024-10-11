@@ -137,7 +137,7 @@ bool DoCPUvsGPUProjectionTest(const wxString& cistem_ref_dir, const wxString& te
     gpu_volume.Init(cpu_volume, false, true);
 
     // The volume is already in Fourier space, so we can copy it to texture cache for interpolation.
-    gpu_volume.CopyHostToDeviceTextureComplex3d(cpu_volume);
+    gpu_volume.CopyHostToDeviceTextureComplex<3>(cpu_volume);
 
     // Image centered;
     // centered.CopyFrom(&cimg);

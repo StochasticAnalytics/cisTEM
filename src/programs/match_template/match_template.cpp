@@ -667,12 +667,12 @@ bool MatchTemplateApp::DoCalculation( ) {
                 // TODO: Initially, i had this set to use
                 // GpuImage::InitializeBasedOnCpuImage(tmp_vol, false, true); where the memory is instructed not to be pinned.
                 // This should be fine now, but .
-                profile_timing.start("CopyHostToDeviceTextureComplex3d");
+                profile_timing.start("CopyHostToDeviceTextureComplex");
 
                 template_reconstruction_gpu = std::make_shared<GpuImage>(template_reconstruction);
-                template_reconstruction_gpu->CopyHostToDeviceTextureComplex3d(template_reconstruction);
+                template_reconstruction_gpu->CopyHostToDeviceTextureComplex<3>(template_reconstruction);
 
-                profile_timing.lap("CopyHostToDeviceTextureComplex3d");
+                profile_timing.lap("CopyHostToDeviceTextureComplex");
             }
 
 #pragma omp parallel num_threads(max_threads)

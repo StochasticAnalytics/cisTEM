@@ -227,13 +227,13 @@ void ProjectionComparisonObjects::PrepareGpuVolumeProjection(InputVolumeType& in
     if ( is_for_global_search ) {
         MyDebugAssertFalse(is_allocated_gpu_search_density_map, "Gpu search density map is already allocated");
         gpu_search_density_map.Init(temp_image, false, false);
-        gpu_search_density_map.CopyHostToDeviceTextureComplex3d(temp_image);
+        gpu_search_density_map.CopyHostToDeviceTextureComplex<3>(temp_image);
         is_allocated_gpu_search_density_map = true;
     }
     else {
         MyDebugAssertFalse(is_allocated_gpu_density_map, "Gpu density map is already allocated");
         gpu_density_map.Init(temp_image, false, false);
-        gpu_density_map.CopyHostToDeviceTextureComplex3d(temp_image);
+        gpu_density_map.CopyHostToDeviceTextureComplex<3>(temp_image);
         is_allocated_gpu_density_map = true;
     }
 
