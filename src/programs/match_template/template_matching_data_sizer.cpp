@@ -357,14 +357,13 @@ void TemplateMatchingDataSizer::GetFFTSize( ) {
     if ( resampling_is_needed ) {
         // Here we need to scale the padding to account for resampling.
         // I think the easiest way to handle fractional reduction, which could result in an odd number of invalid rows/columns is to round up
-        float binning_factor   = search_pixel_size / pixel_size;
-        pre_binning_padding_x  = myroundint(ceilf(float(pre_binning_padding_x) / binning_factor));
-        pre_binning_padding_y  = myroundint(ceilf(float(pre_binning_padding_y) / binning_factor));
-        post_binning_padding_x = myroundint(ceilf(float(post_binning_padding_x) / binning_factor));
-        post_binning_padding_y = myroundint(ceilf(float(post_binning_padding_y) / binning_factor));
+        pre_binning_padding_x  = myroundint(ceilf(float(pre_binning_padding_x) / GetFullBinningFactor( )));
+        pre_binning_padding_y  = myroundint(ceilf(float(pre_binning_padding_y) / GetFullBinningFactor( )));
+        post_binning_padding_x = myroundint(ceilf(float(post_binning_padding_x) / GetFullBinningFactor( )));
+        post_binning_padding_y = myroundint(ceilf(float(post_binning_padding_y) / GetFullBinningFactor( )));
 
 #ifdef DEBUG_TM_SIZER_PRINT
-        wxPrintf("binning factor = %f\n", binning_factor);
+        wxPrintf("binning factor = %f\n", GetFullBinningFactor( ));
         wxPrintf("pre_binning_padding_x = %i\n", pre_binning_padding_x);
         wxPrintf("pre_binning_padding_y = %i\n", pre_binning_padding_y);
         wxPrintf("post_binning_padding_x = %i\n", post_binning_padding_x);
@@ -494,6 +493,10 @@ void TemplateMatchingDataSizer::ResizeTemplate_preSearch(Image& template_image, 
 
     if ( use_lerp_not_fourier_resampling ) {
         // We only need to set the 3d to be the padded power of two size and have the resampling be handled during the projection step.
+        // search size always >= cropped size
+        template_search_size.x = std::max(template_search_size.x, template_size.x);
+        template_search_size.y = std::max(template_search_size.y, template_size.y);
+        template_search_size.z = std::max(template_search_size.z, template_size.z);
         template_image.Resize(template_search_size.x, template_search_size.y, template_search_size.z, template_image.ReturnAverageOfRealValuesOnEdges( ));
     }
     else {

@@ -9,6 +9,8 @@
 // Implementation is in the header as it is only used here for now.
 #include "projection_queue.cuh"
 
+constexpr bool trouble_shoot_mip = false;
+
 using namespace cistem_timer;
 
 void TemplateMatchingCore::Init(MyApp*                    parent_pointer,
@@ -179,8 +181,10 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter,
 
     if ( use_fast_fft ) {
         // TODO: overload that takes and short4's int4's instead of the individual values
-        FT.SetForwardFFTPlan(current_projection[0].logical_x_dimension, current_projection[0].logical_y_dimension, current_projection[0].logical_z_dimension, d_padded_reference.dims.x, d_padded_reference.dims.y, d_padded_reference.dims.z, true);
-        FT.SetInverseFFTPlan(d_padded_reference.dims.x, d_padded_reference.dims.y, d_padded_reference.dims.z, d_padded_reference.dims.x, d_padded_reference.dims.y, d_padded_reference.dims.z, true);
+        FT.SetForwardFFTPlan(current_projection[0].logical_x_dimension, current_projection[0].logical_y_dimension, current_projection[0].logical_z_dimension,
+                             d_padded_reference.dims.x, d_padded_reference.dims.y, d_padded_reference.dims.z, true);
+        FT.SetInverseFFTPlan(d_padded_reference.dims.x, d_padded_reference.dims.y, d_padded_reference.dims.z,
+                             d_padded_reference.dims.x, d_padded_reference.dims.y, d_padded_reference.dims.z, true);
     }
 #endif
     int   ccc_counter = 0;
@@ -255,6 +259,7 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter,
                 // Default GpuImage methods are in cudaStreamPerThread
 
                 d_current_projection[current_projection_idx].BackwardFFT( );
+                ;
             }
             else {
                 // Make sure the previous copy from host -> device has completed before we start to make another projection.
@@ -323,6 +328,19 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter,
                 d_padded_reference.ForwardFFT(false);
                 //      d_padded_reference.ForwardFFTAndClipInto(d_current_projection,false);
                 d_padded_reference.BackwardFFTAfterComplexConjMul(d_input_image.complex_values_fp16, true, my_dist->GetCCFArray(current_mip_to_process));
+            }
+
+            if constexpr ( trouble_shoot_mip ) {
+                // To trouble shoot
+                cudaErr(cudaDeviceSynchronize( ));
+                // Just make sure we have the FP16 buffer allocated
+                d_padded_reference.CopyFP32toFP16buffer(false);
+                cudaErr(cudaMemcpy(d_padded_reference.real_values_fp16, my_dist->GetCCFArray(current_mip_to_process), d_padded_reference.real_memory_allocated * sizeof(__half), cudaMemcpyDeviceToDevice));
+                // Move back into the fp32 buffer
+                d_padded_reference.CopyFP16buffertoFP32(false);
+                // Write out the padded reference
+                d_padded_reference.QuickAndDirtyWriteSlice("padded_ref.mrc", 1);
+                exit(0);
             }
             // d_padded_reference.MultiplyByConstant(rsqrtf(d_padded_reference.ReturnSumOfSquares( ) / (float)d_padded_reference.number_of_real_space_pixels));
 
