@@ -1165,8 +1165,6 @@ void GpuImage::NormalizeRealSpaceStdDeviationAndCastToFp16(float additional_scal
     ReturnLaunchParameters(dims, true);
     precheck;
 
-    // TODO: add note on additional scalar
-    additional_scalar *= float(number_of_real_space_pixels);
     NormalizeRealSpaceStdDeviationAndCastToFp16Kernel<<<gridDims, threadsPerBlock, 0, cudaStreamPerThread>>>(
             real_values, real_values_fp16, (double*)&tmpValComplex[tmp_val_idx::L2Norm], additional_scalar, (pre_calculated_avg * pre_calculated_avg), average_on_edge, dims);
     postcheck;

@@ -26,6 +26,15 @@ using namespace cistem_timer_noop;
 
 #define USE_LERP_NOT_FOURIER_RESIZING
 
+// In all cases, if we resize the image, we ignore the padding regions.
+// We also remove some border where the CCC isn't necessarily valid.
+// Defining USE_ONLY_VALID_AREA_FOR_NORMALIZATION only counts values in the final
+// mip (-padding - invalid border) for threshold calculation
+// Not defining will use exclude padding but not the region cropped for the template. The latter
+// case doesn't really make sense.
+// TODO: this should probably be removed.
+// #define USE_ONLY_VALID_AREA_FOR_NORMALIZATION
+
 class AggregatedTemplateResult {
 
   public:
@@ -979,7 +988,12 @@ bool MatchTemplateApp::DoCalculation( ) {
         // calculate the expected threshold (from peter's paper)
         const float CCG_NOISE_STDDEV = 1.0;
         double      temp_threshold;
-        double      erf_input = 2.0 / (1.0 * double(data_sizer.GetNumberOfValidSearchPixels( )) * (double)total_correlation_positions);
+#ifdef USE_ONLY_VALID_AREA_FOR_NORMALIZATION
+        double erf_input = 2.0 / (1.0 * double(data_sizer.GetNumberOfValidSearchPixels( )) * (double)total_correlation_positions);
+#else
+        double erf_input = 2.0 / (1.0 * double(data_sizer.GetNumberOfPixelsForNormalization( )) * (double)total_correlation_positions);
+#endif
+
 #ifdef MKL
         vdErfcInv(1, &erf_input, &temp_threshold);
 #else
@@ -1108,16 +1122,20 @@ bool MatchTemplateApp::DoCalculation( ) {
         {
             using cm_t = cistem::match_template::Enum;
 
-            result[cm_t::image_size_x]                  = max_intensity_projection.logical_x_dimension;
-            result[cm_t::image_size_y]                  = max_intensity_projection.logical_y_dimension;
-            result[cm_t::image_real_memory_allocated]   = max_intensity_projection.real_memory_allocated;
-            result[cm_t::number_of_histogram_bins]      = histogram_number_of_points;
-            result[cm_t::number_of_angles_searched]     = actual_number_of_angles_searched;
-            result[cm_t::number_of_histogram_samples]   = total_number_of_histogram_samples;
-            result[cm_t::number_of_stats_samples]       = total_number_of_stats_samples;
-            result[cm_t::ccc_scalar]                    = 1.0f; // (float)sqrt_input_pixels is redundant, but we need all the results to calculate the scaling from the global CCC moments
-            result[cm_t::input_pixel_size]              = data_sizer.GetPixelSize( );
+            result[cm_t::image_size_x]                = max_intensity_projection.logical_x_dimension;
+            result[cm_t::image_size_y]                = max_intensity_projection.logical_y_dimension;
+            result[cm_t::image_real_memory_allocated] = max_intensity_projection.real_memory_allocated;
+            result[cm_t::number_of_histogram_bins]    = histogram_number_of_points;
+            result[cm_t::number_of_angles_searched]   = actual_number_of_angles_searched;
+            result[cm_t::number_of_histogram_samples] = total_number_of_histogram_samples;
+            result[cm_t::number_of_stats_samples]     = total_number_of_stats_samples;
+            result[cm_t::ccc_scalar]                  = 1.0f; // (float)sqrt_input_pixels is redundant, but we need all the results to calculate the scaling from the global CCC moments
+            result[cm_t::input_pixel_size]            = data_sizer.GetPixelSize( );
+#ifdef USE_ONLY_VALID_AREA_FOR_NORMALIZATION
             result[cm_t::number_of_valid_search_pixels] = data_sizer.GetNumberOfValidSearchPixels( );
+#else
+            result[cm_t::number_of_valid_search_pixels] = data_sizer.GetNumberOfPixelsForNormalization( );
+#endif
         }
 
         result_array_counter = cistem::match_template::number_of_meta_data_values;
@@ -1582,8 +1600,6 @@ void MatchTemplateApp::MasterHandleProgramDefinedResult(float* result_array, lon
 
                 result_image.InsertOtherImageAtSpecifiedPosition(&current_projection, current_peak.x - result_image.physical_address_of_box_center_x, current_peak.y - result_image.physical_address_of_box_center_y, 0, 0.0f);
                 all_peak_infos.Add(temp_peak_info);
-
-                //current_projection.QuickAndDirtyWriteSlice("/tmp/projs.mrc", all_peak_infos.GetCount());
             }
             else {
                 SendInfo("WARNING: More than 1000 peaks above threshold were found. Limiting results to 1000 peaks.\n");

@@ -259,7 +259,6 @@ void TemplateMatchingCore::RunInnerLoop(Image& projection_filter,
                 // Default GpuImage methods are in cudaStreamPerThread
 
                 d_current_projection[current_projection_idx].BackwardFFT( );
-                ;
             }
             else {
                 // Make sure the previous copy from host -> device has completed before we start to make another projection.
