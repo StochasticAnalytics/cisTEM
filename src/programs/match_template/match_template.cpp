@@ -985,7 +985,7 @@ bool MatchTemplateApp::DoCalculation( ) {
         // calculate the expected threshold (from peter's paper)
         const float CCG_NOISE_STDDEV = 1.0;
         double      temp_threshold;
-        double      erf_input = 2.0 / (1.0 * double(data_sizer.GetNumberOfPixelsForNormalization( )) * (double)total_correlation_positions);
+        double      erf_input = 2.0 / (1.0 * double(data_sizer.GetNumberOfValidSearchPixels( )) * (double)total_correlation_positions);
 
 #ifdef MKL
         vdErfcInv(1, &erf_input, &temp_threshold);
@@ -1124,7 +1124,7 @@ bool MatchTemplateApp::DoCalculation( ) {
             result[cm_t::number_of_stats_samples]       = total_number_of_stats_samples;
             result[cm_t::ccc_scalar]                    = 1.0f; // (float)sqrt_input_pixels is redundant, but we need all the results to calculate the scaling from the global CCC moments
             result[cm_t::input_pixel_size]              = data_sizer.GetPixelSize( );
-            result[cm_t::number_of_valid_search_pixels] = data_sizer.GetNumberOfPixelsForNormalization( );
+            result[cm_t::number_of_valid_search_pixels] = data_sizer.GetNumberOfValidSearchPixels( );
         }
 
         result_array_counter = cistem::match_template::number_of_meta_data_values;

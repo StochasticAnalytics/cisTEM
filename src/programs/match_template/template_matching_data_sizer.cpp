@@ -17,7 +17,7 @@
 #include "template_matching_data_sizer.h"
 
 // #define DEBUG_IMG_OUTPUT "/sa_shared/git/cisTEM/build/img_4.3"
-// #define DEBUG_TM_SIZER_PRINT
+#define DEBUG_TM_SIZER_PRINT
 
 TemplateMatchingDataSizer::TemplateMatchingDataSizer(MyApp* wanted_parent_ptr,
                                                      Image& input_image,
@@ -365,7 +365,7 @@ void TemplateMatchingDataSizer::SetValidSearchImageIndiciesFromPadding(const int
     //       and thereby we create "false negatives" by enforcing this exclusion border the more important issue is to return only peak heights that are not due to the location
     //       in the image. We cannot determine how the downstream processing may compare peak to peak within an image, and so we must be conservative,
     //       in the goal of not leading these downstream analysis to errant conclusions.
-    int template_padding = myroundint(float(template_search_size.x) / GetFullBinningFactor( )) / cistem::fraction_of_box_size_to_exclude_for_border;
+    int template_padding = 0; //myroundint(float(template_search_size.x) / GetFullBinningFactor( )) / cistem::fraction_of_box_size_to_exclude_for_border;
 
     search_image_valid_area_lower_bound_x = pre_padding_x + template_padding;
     search_image_valid_area_lower_bound_y = pre_padding_y + template_padding;
