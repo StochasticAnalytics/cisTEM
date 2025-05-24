@@ -28,7 +28,9 @@ MyOverviewPanel*           overview_panel;
 ActionsPanelSpa*           actions_panel_spa;
 ActionsPanelTm*            actions_panel_tm;
 AssetsPanel*               assets_panel;
-MyResultsPanel*            results_panel;
+ResultsPanelSpa*           results_panel_spa;
+ResultsPanelTm*            results_panel_tm;
+MyResultsPanel*            results_panel; // Keep this temporarily for compatibility
 SettingsPanel*             settings_panel;
 MatchTemplatePanel*        match_template_panel;
 MatchTemplateResultsPanel* match_template_results_panel;
@@ -125,7 +127,9 @@ bool MyGuiApp::OnInit( ) {
     actions_panel_spa = new ActionsPanelSpa(main_frame->MenuBook, wxID_ANY);
     actions_panel_tm  = new ActionsPanelTm(main_frame->MenuBook, wxID_ANY);
     assets_panel      = new MyAssetsPanel(main_frame->MenuBook, wxID_ANY);
-    results_panel     = new MyResultsPanel(main_frame->MenuBook, wxID_ANY);
+    results_panel_spa = new ResultsPanelSpa(main_frame->MenuBook, wxID_ANY);
+    results_panel_tm  = new ResultsPanelTm(main_frame->MenuBook, wxID_ANY);
+    results_panel     = results_panel_spa; // For compatibility with code that uses results_panel, default to SPA
     settings_panel    = new MySettingsPanel(main_frame->MenuBook, wxID_ANY);
 #ifdef EXPERIMENTAL
     experimental_panel = new MyExperimentalPanel(main_frame->MenuBook, wxID_ANY);
@@ -153,16 +157,16 @@ bool MyGuiApp::OnInit( ) {
     generate_3d_panel              = new Generate3DPanel(actions_panel_spa->ActionsBook);
     sharpen_3d_panel               = new Sharpen3DPanel(actions_panel_spa->ActionsBook);
 
-    movie_results_panel      = new MyMovieAlignResultsPanel(results_panel->ResultsBook);
-    ctf_results_panel        = new MyFindCTFResultsPanel(results_panel->ResultsBook);
-    picking_results_panel    = new MyPickingResultsPanel(results_panel->ResultsBook);
-    refine2d_results_panel   = new Refine2DResultsPanel(results_panel->ResultsBook);
-    refinement_results_panel = new MyRefinementResultsPanel(results_panel->ResultsBook);
+    movie_results_panel      = new MyMovieAlignResultsPanel(results_panel_spa->ResultsBook);
+    ctf_results_panel        = new MyFindCTFResultsPanel(results_panel_spa->ResultsBook);
+    picking_results_panel    = new MyPickingResultsPanel(results_panel_spa->ResultsBook);
+    refine2d_results_panel   = new Refine2DResultsPanel(results_panel_spa->ResultsBook);
+    refinement_results_panel = new MyRefinementResultsPanel(results_panel_spa->ResultsBook);
 
     // The other panels will be "stolen" from actions_panel_spa by "Reparenting" when the menu
     // item is selected in MainFrame.cpp
     match_template_panel         = new MatchTemplatePanel(actions_panel_tm->ActionsBook);
-    match_template_results_panel = new MatchTemplateResultsPanel(actions_panel_tm->ActionsBook);
+    match_template_results_panel = new MatchTemplateResultsPanel(results_panel_tm->ResultsBook);
     refine_template_panel        = new RefineTemplatePanel(actions_panel_tm->ActionsBook);
 #ifdef EXPERIMENTAL
     refine_template_dev_panel = new RefineTemplateDevPanel(experimental_panel->ExperimentalBook);
@@ -279,7 +283,7 @@ bool MyGuiApp::OnInit( ) {
     main_frame->MenuBook->RemovePage(2);
 
     main_frame->MenuBook->AddPage(actions_panel_spa, "Actions", false, 2);
-    main_frame->MenuBook->AddPage(results_panel, "Results", false, 3);
+    main_frame->MenuBook->AddPage(results_panel_spa, "Results", false, 3);
     main_frame->MenuBook->AddPage(settings_panel, "Settings", false, 4);
 #ifdef EXPERIMENTAL
     main_frame->MenuBook->AddPage(experimental_panel, "Experimental", false, 5);
@@ -310,15 +314,22 @@ bool MyGuiApp::OnInit( ) {
     actions_panel_tm->ActionsBook->AddPage(findctf_panel, "Find CTF", false, 1);
     actions_panel_tm->ActionsBook->AddPage(match_template_panel, "Match Templates", false, 2);
     actions_panel_tm->ActionsBook->AddPage(refine_template_panel, "Refine Template", false, 3);
-    actions_panel_tm->ActionsBook->AddPage(match_template_results_panel, "MT Results", false, 2);
     actions_panel_tm->ActionsBook->AddPage(generate_3d_panel, "Generate 3D", false, 4);
     actions_panel_tm->ActionsBook->AddPage(sharpen_3d_panel, "Sharpen 3D", false, 5);
 
-    results_panel->ResultsBook->AddPage(movie_results_panel, "Align Movies", true, 0);
-    results_panel->ResultsBook->AddPage(ctf_results_panel, "Find CTF", false, 1);
-    results_panel->ResultsBook->AddPage(picking_results_panel, "Find Particles", false, 2);
-    results_panel->ResultsBook->AddPage(refine2d_results_panel, "2D Classify", false, 3);
-    results_panel->ResultsBook->AddPage(refinement_results_panel, "3D Refinement", false, 4);
+    results_panel_spa->ResultsBook->AddPage(movie_results_panel, "Align Movies", true, 0);
+    results_panel_spa->ResultsBook->AddPage(ctf_results_panel, "Find CTF", false, 1);
+    results_panel_spa->ResultsBook->AddPage(picking_results_panel, "Find Particles", false, 2);
+    results_panel_spa->ResultsBook->AddPage(refine2d_results_panel, "2D Classify", false, 3);
+    results_panel_spa->ResultsBook->AddPage(refinement_results_panel, "3D Refinement", false, 4);
+    
+    // TM Results Panel - add to TM panel only
+    results_panel_tm->ResultsBook->AddPage(movie_results_panel, "Align Movies", true, 0);
+    results_panel_tm->ResultsBook->AddPage(ctf_results_panel, "Find CTF", false, 1);
+    results_panel_tm->ResultsBook->AddPage(picking_results_panel, "Find Particles", false, 2);
+    results_panel_tm->ResultsBook->AddPage(refine2d_results_panel, "2D Classify", false, 3);
+    results_panel_tm->ResultsBook->AddPage(refinement_results_panel, "3D Refinement", false, 4);
+    results_panel_tm->ResultsBook->AddPage(match_template_results_panel, "MT Results", false, 5);
 
     settings_panel->SettingsBook->AddPage(run_profiles_panel, "Run Profiles", true, 0);
 

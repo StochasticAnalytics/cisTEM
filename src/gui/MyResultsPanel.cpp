@@ -14,6 +14,7 @@ void MyResultsPanel::OnResultsBookPageChanged(wxBookCtrlEvent& event) {
     extern MyPickingResultsPanel*    picking_results_panel;
     extern Refine2DResultsPanel*     refine2d_results_panel;
     extern MyRefinementResultsPanel* refinement_results_panel;
+    extern MatchTemplateResultsPanel* match_template_results_panel;
 
     // We we were editing the particle picking results, and we move away from Results, we may need to do some database stuff
     if ( event.GetOldSelection( ) == 2 )
@@ -40,6 +41,10 @@ void MyResultsPanel::OnResultsBookPageChanged(wxBookCtrlEvent& event) {
     else if ( event.GetSelection( ) == 4 ) {
         refinement_results_panel->Layout( );
         refinement_results_panel->Refresh( );
+    }
+    else if ( event.GetSelection( ) == 5 ) {
+        match_template_results_panel->Layout( );
+        match_template_results_panel->Refresh( );
     }
 #endif
 }

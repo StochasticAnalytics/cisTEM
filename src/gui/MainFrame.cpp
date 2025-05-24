@@ -33,7 +33,9 @@ extern Sharpen3DPanel*       sharpen_3d_panel;
 extern MySettingsPanel*    settings_panel;
 extern MyRunProfilesPanel* run_profiles_panel;
 
-extern MyResultsPanel*            results_panel;
+extern ResultsPanelSpa*          results_panel_spa;
+extern ResultsPanelTm*           results_panel_tm;
+extern MyResultsPanel*           results_panel;
 extern MyMovieAlignResultsPanel*  movie_results_panel;
 extern MyFindCTFResultsPanel*     ctf_results_panel;
 extern MyPickingResultsPanel*     picking_results_panel;
@@ -210,12 +212,22 @@ void MyMainFrame::OnMenuBookChange(wxBookCtrlEvent& event) {
         movie_asset_panel->Refresh( );
     }
     else if ( event.GetSelection( ) == 2 ) {
-        actions_panel->ActionsBook->Refresh( );
+        // Refresh the appropriate actions panel based on the current workflow
+        if (current_workflow == cistem::workflow::template_matching) {
+            actions_panel_tm->ActionsBook->Refresh( );
+        } else {
+            actions_panel_spa->ActionsBook->Refresh( );
+        }
         align_movies_panel->Layout( );
         align_movies_panel->Refresh( );
     }
     else if ( event.GetSelection( ) == 3 ) {
-        results_panel->ResultsBook->Refresh( );
+        // Refresh the appropriate results panel based on the current workflow
+        if (current_workflow == cistem::workflow::template_matching) {
+            results_panel_tm->ResultsBook->Refresh( );
+        } else {
+            results_panel_spa->ResultsBook->Refresh( );
+        }
         movie_results_panel->Layout( );
         movie_results_panel->Refresh( );
     }
@@ -934,9 +946,15 @@ void MyMainFrame::SetSingleParticleWorkflow(bool triggered_by_gui_event) {
         switch ( current_workflow ) {
             case cistem::workflow::template_matching: {
                 UpdateWorkflow(actions_panel_tm, actions_panel_spa, "Actions");
-
-                // If other panels, e.g. results is a likely next candidate, it should go here.
-                // TODO: if there are multiple panels to switch, we'll need to only do the update and set the icon for the LAST call in this sequence.
+                
+                // Also update the results panel
+                int displayed_page_idx = MenuBook->FindPage(MenuBook->GetCurrentPage());
+                int current_page_idx = MenuBook->FindPage(results_panel_tm);
+                MenuBook->RemovePage(current_page_idx);
+                MenuBook->InsertPage(current_page_idx, results_panel_spa, "Results", false, current_page_idx);
+                results_panel = results_panel_spa;
+                MenuBook->SetSelection(displayed_page_idx);
+                
                 break;
             }
             default: {
@@ -962,6 +980,15 @@ void MyMainFrame::SetTemplateMatchingWorkflow(bool triggered_by_gui_event) {
     if ( current_workflow != cistem::workflow::template_matching ) {
         previous_workflow = current_workflow;
         UpdateWorkflow(actions_panel_spa, actions_panel_tm, "Actions");
+        
+        // Also update the results panel
+        int displayed_page_idx = MenuBook->FindPage(MenuBook->GetCurrentPage());
+        int current_page_idx = MenuBook->FindPage(results_panel_spa);
+        MenuBook->RemovePage(current_page_idx);
+        MenuBook->InsertPage(current_page_idx, results_panel_tm, "Results", false, current_page_idx);
+        results_panel = results_panel_tm;
+        MenuBook->SetSelection(displayed_page_idx);
+        
         current_workflow = cistem::workflow::template_matching;
         if ( current_project.is_open == true )
             current_project.RecordCurrentWorkflowInDB(current_workflow);
